@@ -48,13 +48,29 @@ You can also run it any time with the **Run workflow** button.
 
 ---
 
+## Small companies: Workable search + Adzuna
+
+Two sources search across **many** employers at once, so small companies show up without you
+naming them:
+
+- **Workable search** (no setup): Workable's own cross-company job search, filtered to India.
+- **Adzuna** (free key): a job aggregator with an India site.
+  1. Sign up at [developer.adzuna.com](https://developer.adzuna.com) (free, no card) and copy your App ID and App Key.
+  2. Render: service > **Environment** > add `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`.
+     GitHub daily crawl: repo **Settings > Secrets and variables > Actions** > add the same two secrets.
+     Colab: add them in the 🔑 Secrets panel.
+  3. The free plan allows about 1,000 calls a month. Each crawl uses up to 6 (2 searches × 3 pages),
+     set by `adzuna_max_pages` in `config.json`.
+
+Without a key, the Adzuna rows just show "key not set" under failed sources; untick them if you don't want them.
+
 ## Adding companies
 
 **In the web page:** paste any of these into "Add a company":
 - a job-board link: `https://jobs.lever.co/razorpay`, `https://boards.greenhouse.io/stripe`, `https://jobs.ashbyhq.com/zepto`
 - a Workday link: `https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal`
 - an Oracle link: `https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001`
-- an Eightfold site: `https://apply.careers.microsoft.com` (the `domain` setting is detected from the page)
+- an Eightfold site, e.g. `https://<company>.eightfold.ai/careers` (the `domain` setting is detected from the page)
 - Workable / Recruitee / Breezy links: `https://apply.workable.com/<company>`, `https://<company>.recruitee.com`, `https://<company>.breezy.hr`
 - a company's own careers page, if it embeds one of the above: `https://razorpay.com/jobs/`
 - a single job's link (it works out the board from it)
@@ -80,6 +96,10 @@ the daily GitHub crawl), click **Copy my added sources (JSON)** and paste the li
 Any company that fails appears under "sources failed" after a crawl. PhonePe and Postman use
 Greenhouse but have its public job feed switched off, so they can't be crawled. Rippling, Zepto and
 Upstox use their own sites.
+
+**Sites that refuse automated access:** the crawler identifies itself honestly and doesn't disguise
+itself as a browser. If a site answers 403 (Forbidden), it's reported under "sources failed". Microsoft's
+and Qualcomm's career sites do this, so they aren't in the default list. Check those by hand.
 
 **Time limit:** a crawl stops after 4 minutes (`max_crawl_seconds` in `config.json`). You get everything
 found so far, and any unfinished sources are listed as "timed out".

@@ -192,15 +192,11 @@ WORKDAY_LOCK = threading.Lock()
 def workday(client, url, keep, searches=("software engineer", "java"), max_per_search=200):
     host, tenant, site = parse_workday_url(url)
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
-    headers = {"Origin": f"https://{host}", "Referer": f"https://{host}/{site}"}
+    headers = None
     seen, out = set(), Found()
     with WORKDAY_LOCK:
         if "myworkdayjobs.com" in client.blocked:
             raise RateLimited("skipped: Workday already rate-limited this server in this crawl")
-        try:  # open the career site once like a browser would, to pick up its session cookie
-            client.get_text(f"https://{host}/{site}", max_bytes=200_000, retries=1)
-        except Exception:
-            pass
         for q in searches:
             offset, total = 0, None
             while True:
@@ -264,4 +260,5 @@ FETCHERS.update(jibe=_jibe, sitemap=_sitemap)
 
 from . import more_sources as _more  # noqa: E402
 FETCHERS.update(recruitee=_more.recruitee, workable=_more.workable, breezy=_more.breezy,
-                oracle=_more.oracle, eightfold=_more.eightfold)
+                oracle=_more.oracle, eightfold=_more.eightfold,
+                workable_search=_more.workable_search, adzuna=_more.adzuna)

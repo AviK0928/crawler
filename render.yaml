@@ -14,3 +14,7 @@ services:
         value: 3.12.7
       - key: APP_PASSWORD      # optional: set a value in the Render dashboard to password-protect the site
         sync: false
+      - key: ADZUNA_APP_ID     # optional: free key from developer.adzuna.com
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false

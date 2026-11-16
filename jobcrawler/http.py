@@ -9,8 +9,9 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 java-job-crawler/2.1")
+# Identify honestly as a crawler. If a site refuses automated access (403/429), we report it and move on;
+# we never disguise requests as a browser to get around a refusal.
+USER_AGENT = "java-job-crawler/2.2 (personal job search; reads public job-board feeds)"
 
 
 def assert_public_url(url):

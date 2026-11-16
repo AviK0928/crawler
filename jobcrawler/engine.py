@@ -11,11 +11,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeout
 
 from . import scoring, sources
+from .more_sources import AGGREGATORS
 from .http import CrawlTimeout, HttpClient, NotFound, RateLimited
 
 
 def entry_label(e):
-    ident = e["id"] if isinstance(e["id"], str) else (e["id"].get("base_query") or e["id"].get("domain") or "")
+    ident = e["id"] if isinstance(e["id"], str) else (e["id"].get("base_query") or e["id"].get("domain")
+                                                      or e["id"].get("query") or e["id"].get("what") or "")
     return f'{e.get("name") or ident} ({e["ats"]})'
 
 
@@ -40,6 +42,9 @@ def run_crawl(entries, cfg, log=print, client=None):
         if e["ats"] == "eightfold":
             return fn(client, e["id"], keep, location=cfg.get("eightfold_location", "India"),
                       searches=tuple(cfg.get("workday_searches", ["software engineer"])))
+        if e["ats"] == "adzuna":
+            return fn(client, e["id"], keep, max_pages=cfg.get("adzuna_max_pages", 3),
+                      max_days_old=cfg.get("adzuna_max_days_old", 30))
         if e["ats"] == "smartrecruiters":
             return fn(client, e["id"], keep, country=cfg.get("smartrecruiters_country", "in"))
         return fn(client, e["id"], keep)
@@ -56,8 +61,9 @@ def run_crawl(entries, cfg, log=print, client=None):
             label = entry_label(futs[fut])
             try:
                 got = fut.result()
-                for j in got:                       # show the friendly company name
-                    j.company = futs[fut].get("name") or j.company
+                if futs[fut]["ats"] not in AGGREGATORS:   # aggregators keep each job's own company
+                    for j in got:
+                        j.company = futs[fut].get("name") or j.company
                 raw.extend(got)
                 scanned = getattr(got, "scanned", None)
                 log(f"✓ {label}: " + (f"{scanned} postings scanned, {len(got)} relevant" if scanned is not None

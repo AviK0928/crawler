@@ -32,5 +32,7 @@
   "smartrecruiters_country": "in",
   "require_stated_experience": false,
   "max_crawl_seconds": 240,
-  "eightfold_location": "India"
+  "eightfold_location": "India",
+  "adzuna_max_pages": 3,
+  "adzuna_max_days_old": 30
 }
