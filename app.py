@@ -73,6 +73,8 @@ def api_resolve():
         entry = resolve(text[:500], HttpClient(min_interval=0.2, timeout=12, retries=1))
     except ValueError as e:
         return jsonify(error=str(e)), 400
+    except Exception as e:
+        return jsonify(error=f"Lookup failed ({type(e).__name__}). Try again or paste a single job's link."), 400
     entry["key"] = entry_key(entry)
     return jsonify(entry)
 
@@ -95,7 +97,8 @@ def _settings(user):
 
 
 def _valid_entry(e):
-    return (isinstance(e, dict) and e.get("ats") in ("greenhouse", "lever", "ashby", "smartrecruiters", "workday", "amazon")
+    return (isinstance(e, dict) and e.get("ats") in ("greenhouse", "lever", "ashby", "smartrecruiters", "workday", "amazon",
+                                                    "jibe", "sitemap")
             and (isinstance(e.get("id"), str) and 0 < len(e["id"]) < 300 or isinstance(e.get("id"), dict)))
 
 

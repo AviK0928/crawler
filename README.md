@@ -54,6 +54,13 @@ You can also run it any time with the **Run workflow** button.
 - a company's own careers page, if it embeds one of the above: `https://razorpay.com/jobs/`
 - a single job's link (it works out the board from it)
 - or just a name: `Postman`
+- **any other careers site**, e.g. `https://jobs.keysight.com`. If the site isn't on a supported job board,
+  the crawler tries two fallbacks:
+  1. **Jibe job feed** (`<site>/api/jobs`), used by Jibe/iCIMS sites such as Keysight.
+  2. **Sitemap + Google for Jobs data.** Most careers sites (iCIMS, SuccessFactors, Phenom, Eightfold, custom)
+     list job pages in their sitemap and embed schema.org `JobPosting` data so Google can show them.
+     The crawler reads the sitemap and opens only pages whose URL looks like a relevant title (up to 300 per site).
+     This is slower than a job-board feed.
 
 Companies added in the page are saved in that browser. To keep them for good (and for
 the daily GitHub crawl), click **Copy my added sources (JSON)** and paste the lines into
@@ -74,8 +81,8 @@ The crawler visits Workday companies one at a time, waits between requests, retr
 pauses and keeps partial results. Workday may still block cloud servers at busy times. If it does,
 run the crawl again later, or use the GitHub Actions daily crawl, which runs from different IPs.
 
-**Not supported:** companies with fully custom career sites (Google, Microsoft, Flipkart…), and
-LinkedIn/Naukri, which ban automated scraping.
+**Not supported:** sites that publish neither a feed nor job data in their sitemap, sites that block
+automated visitors, and LinkedIn/Naukri, which ban automated scraping.
 
 ## How jobs are scored
 

@@ -7,6 +7,7 @@
   {"name": "Mastercard", "ats": "workday", "id": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"},
   {"name": "NVIDIA", "ats": "workday", "id": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
   {"name": "Adobe", "ats": "workday", "id": "https://adobe.wd5.myworkdayjobs.com/external_experienced"},
+  {"name": "Keysight", "ats": "jibe", "id": "https://jobs.keysight.com"},
   {"name": "Stripe", "ats": "greenhouse", "id": "stripe"},
   {"name": "Databricks", "ats": "greenhouse", "id": "databricks"},
   {"name": "MongoDB", "ats": "greenhouse", "id": "mongodb"},

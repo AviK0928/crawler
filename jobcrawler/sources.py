@@ -249,3 +249,6 @@ FETCHERS = {
     "workday": workday,
     "amazon": amazon,
 }
+
+from .generic import jibe as _jibe, sitemap as _sitemap  # noqa: E402  (fallbacks for other careers sites)
+FETCHERS.update(jibe=_jibe, sitemap=_sitemap)

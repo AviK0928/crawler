@@ -1,12 +1,10 @@
 """Turns whatever the user pastes (a careers-page URL, a job-board URL, or just a
 company name) into a source entry the crawler understands."""
-import ipaddress
 import re
-import socket
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
-from . import sources
-from .http import NotFound
+from . import generic, sources
+from .http import NotFound, assert_public_url
 
 # job-board URL patterns, both as pasted and as embedded in a company's own careers page
 PATTERNS = [
@@ -22,14 +20,7 @@ IGNORE_SLUGS = {"embed", "v1", "jobs", "api", "js", "en", "en-us"}
 
 
 def _safe_public_url(url):
-    """Block requests to localhost / private networks (this runs on a public server)."""
-    u = urlparse(url)
-    if u.scheme not in ("http", "https") or not u.hostname:
-        raise ValueError("Only http(s) links are supported")
-    for info in socket.getaddrinfo(u.hostname, None):
-        ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            raise ValueError("That address isn't allowed")
+    assert_public_url(url)
 
 
 def find_boards(text):
@@ -90,27 +81,33 @@ def resolve(text, client):
             # a company's own careers page: look for an embedded job board in its HTML
             _safe_public_url(url)
             try:
-                page = client.get_text(url)
-            except Exception as ex:
-                raise ValueError(f"Couldn't open that page ({type(ex).__name__}). Try the company name instead.")
-            boards = find_boards(page)
+                boards = find_boards(client.get_text(url))
+            except Exception:
+                boards = []
         for ats, ident in boards:
             try:
                 n = _count(client, ats, ident)
                 return {"name": _pretty(ident), "ats": ats, "id": ident, "jobs": n}
             except Exception:
                 continue
+        # no known job board: try the Jibe feed, then the site's sitemap + Google-for-Jobs data
+        _safe_public_url(url)
+        found = generic.probe(client, url)
+        if found:
+            ats, ident, n = found
+            host = [p for p in urlparse(ident).netloc.split(".") if p not in ("www", "jobs", "careers", "career", "com", "in", "co", "io", "org", "net")]
+            return {"name": (host[0] if host else ident).title(), "ats": ats, "id": ident, "jobs": n}
         # last resort: guess from the domain, e.g. https://razorpay.com/jobs -> "razorpay"
         host = urlparse(url).hostname or ""
-        parts = [p for p in host.split(".") if p not in ("www", "careers", "jobs", "com", "in", "co", "io", "org", "net")]
+        parts = [p for p in host.split(".") if p not in ("www", "careers", "career", "jobs", "com", "in", "co", "io", "org", "net")]
         if parts and not boards:
             try:
                 return resolve(parts[0], client)
             except ValueError:
                 pass
-        raise ValueError("Couldn't find a supported job board on that page. It probably uses its own system "
-                         "(supported: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Amazon). "
-                         "Tip: click any job on their site and paste that job's link.")
+        raise ValueError("Couldn't read jobs from that site. It isn't on a supported job board, has no public "
+                         "job feed, and doesn't publish job pages in its sitemap. Try pasting the link of a single "
+                         "job from the site, or the company name.")
 
     slugs, sr_slugs = _name_guesses(text)
     for ats in ("greenhouse", "lever", "ashby"):

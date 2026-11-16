@@ -1,6 +1,8 @@
 """Tiny polite HTTP client: retries, backoff, per-host rate limiting, cookies. Stdlib only."""
 import http.cookiejar
+import ipaddress
 import json
+import socket
 import threading
 import time
 import urllib.error
@@ -9,6 +11,22 @@ from urllib.parse import urlparse
 
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/130.0 Safari/537.36 java-job-crawler/2.1")
+
+
+def assert_public_url(url):
+    """Refuse localhost / private-network addresses: this code runs on a public server and
+    some URLs (careers pages, sitemaps) come from users."""
+    u = urlparse(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise ValueError("Only http(s) links are supported")
+    try:
+        infos = socket.getaddrinfo(u.hostname, None)
+    except socket.gaierror:
+        raise ValueError(f"Couldn't find the site {u.hostname}")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise ValueError("That address isn't allowed")
 
 
 class NotFound(Exception):
