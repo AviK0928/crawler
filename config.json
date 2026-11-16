@@ -30,5 +30,7 @@
   ],
   "workday_seconds_between_requests": 1.5,
   "smartrecruiters_country": "in",
-  "require_stated_experience": false
+  "require_stated_experience": false,
+  "max_crawl_seconds": 240,
+  "eightfold_location": "India"
 }

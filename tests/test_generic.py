@@ -169,3 +169,59 @@ class Safety(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TimeLimitsAndFailFast(unittest.TestCase):
+    def test_workday_block_skips_remaining_workday_sites(self):
+        from jobcrawler.http import RateLimited
+        calls = []
+
+        class C(FakeSiteClient):
+            def get_text(self, url, **kw):
+                raise NotFound(url)
+
+            def post_json(self, url, data, **kw):
+                calls.append(url)
+                raise RateLimited("429")
+
+        entries = [{"name": n, "ats": "workday", "id": f"https://{n}.wd5.myworkdayjobs.com/Ext"}
+                   for n in ("walmart", "nvidia", "paypal", "adobe")]
+        import time as _t
+        t0 = _t.monotonic()
+        _, errors, _ = engine.run_crawl(entries, CFG, log=lambda m: None, client=C())
+        self.assertLess(_t.monotonic() - t0, 5)
+        self.assertEqual(len(calls), 1)                         # only the first site was even tried
+        self.assertEqual(sum("skipped" in m for _, m in errors), 3)
+
+    def test_crawl_time_limit_returns_partial_results(self):
+        class Slow(FakeSiteClient):
+            def get_json(self, url, **kw):
+                self._check_deadline()
+                if "amazon" in url:
+                    self._sleep(0.4)                            # a never-ending, slow source
+                    return {"hits": 10**6, "jobs": [{"id_icims": url[-6:], "title": "x",
+                                                      "normalized_location": "Pune, IND", "job_path": "/x"}]}
+                return super().get_json(url, **kw)
+
+        import time as _t
+        entries = [{"name": "Keysight", "ats": "jibe", "id": "https://jobs.keysight.com"},
+                   {"name": "Amazon", "ats": "amazon", "id": {"base_query": "java"}}]
+        logs = []
+        t0 = _t.monotonic()
+        with mock.patch("jobcrawler.generic.assert_public_url", lambda u: None):
+            matches, errors, _ = engine.run_crawl(entries, {**STRICT, "max_crawl_seconds": 1},
+                                                  log=logs.append, client=Slow())
+        self.assertLess(_t.monotonic() - t0, 4)
+        self.assertEqual([j.title for j in matches], ["R&D Engineer 1, Software"])   # finished source kept
+        self.assertEqual(errors, [("Amazon (amazon)", "timed out (crawl limit 1s)")])
+
+    def test_scanned_vs_relevant_logged(self):
+        class SR(FakeSiteClient):
+            def get_json(self, url, **kw):
+                if "smartrecruiters" in url and "/postings?" in url:
+                    return {"totalFound": 57, "content": [
+                        {"id": "1", "name": "Sr. SW Engineer", "location": {"city": "Bangalore", "country": "in"}}]}
+                raise NotFound(url)
+        logs = []
+        engine.run_crawl([{"name": "Visa", "ats": "smartrecruiters", "id": "Visa"}], CFG, log=logs.append, client=SR())
+        self.assertIn("✓ Visa (smartrecruiters): 57 postings scanned, 0 relevant", logs)

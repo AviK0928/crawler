@@ -1,7 +1,9 @@
 # crawler: Java SDE Job Finder
 
 Finds **entry-level Java / backend SDE openings in India** straight from company job
-boards (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, amazon.jobs). It scores
+boards: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Breezy HR,
+Oracle Recruiting Cloud, Eightfold and amazon.jobs. Other careers sites (iCIMS, SuccessFactors, Phenom…)
+are read through their Jibe feed or their sitemap's Google-for-Jobs data. It scores
 each opening for fit and lets you download the results as **XLSX or CSV** from a simple web page.
 
 Paste a company's careers link into the page and it works out which job board the company uses.
@@ -51,6 +53,9 @@ You can also run it any time with the **Run workflow** button.
 **In the web page:** paste any of these into "Add a company":
 - a job-board link: `https://jobs.lever.co/razorpay`, `https://boards.greenhouse.io/stripe`, `https://jobs.ashbyhq.com/zepto`
 - a Workday link: `https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal`
+- an Oracle link: `https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001`
+- an Eightfold site: `https://apply.careers.microsoft.com` (the `domain` setting is detected from the page)
+- Workable / Recruitee / Breezy links: `https://apply.workable.com/<company>`, `https://<company>.recruitee.com`, `https://<company>.breezy.hr`
 - a company's own careers page, if it embeds one of the above: `https://razorpay.com/jobs/`
 - a single job's link (it works out the board from it)
 - or just a name: `Postman`
@@ -76,9 +81,15 @@ Any company that fails appears under "sources failed" after a crawl. PhonePe and
 Greenhouse but have its public job feed switched off, so they can't be crawled. Rippling, Zepto and
 Upstox use their own sites.
 
+**Time limit:** a crawl stops after 4 minutes (`max_crawl_seconds` in `config.json`). You get everything
+found so far, and any unfinished sources are listed as "timed out".
+
+**Why there's no LinkedIn:** LinkedIn's terms forbid automated scraping, including with your own login,
+and accounts get restricted for it. Use LinkedIn's own job alerts instead (Entry level, India, "Java").
+
 **Workday and "429 Too Many Requests":** Workday limits how fast one server can ask for jobs.
-The crawler visits Workday companies one at a time, waits between requests, retries 429s with longer
-pauses and keeps partial results. Workday may still block cloud servers at busy times. If it does,
+The crawler visits Workday companies one at a time and waits between requests. As soon as one Workday
+company blocks it, it skips the rest for that crawl (they're all blocking the same server). Workday may still block cloud servers at busy times. If it does,
 run the crawl again later, or use the GitHub Actions daily crawl, which runs from different IPs.
 
 **Not supported:** sites that publish neither a feed nor job data in their sitemap, sites that block

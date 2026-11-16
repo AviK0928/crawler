@@ -12,8 +12,8 @@ import re
 import threading
 from urllib.parse import quote, urlencode, urlparse
 
-from .http import NotFound
-from .models import Job, html_to_text
+from .http import NotFound, RateLimited
+from .models import Found, Job, html_to_text
 
 
 def greenhouse(client, slug, keep):
@@ -93,12 +93,13 @@ def parse_ashby(data, slug):
 
 def smartrecruiters(client, slug, keep, country="in"):
     """`country` (ISO code, e.g. "in") filters on SmartRecruiters' side; big companies have 1000s of postings."""
-    out, offset = [], 0
+    out, offset = Found(), 0
     cq = f"&country={quote(country)}" if country else ""
     while True:
         page = client.get_json(
             f"https://api.smartrecruiters.com/v1/companies/{quote(slug)}/postings?limit=100&offset={offset}{cq}")
         content = page.get("content", [])
+        out.scanned = page.get("totalFound", 0)
         for p in content:
             job = parse_smartrecruiters_summary(p, slug)
             if keep(job.title, job.location):
@@ -192,8 +193,10 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
     host, tenant, site = parse_workday_url(url)
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
     headers = {"Origin": f"https://{host}", "Referer": f"https://{host}/{site}"}
-    seen, out = set(), []
+    seen, out = set(), Found()
     with WORKDAY_LOCK:
+        if "myworkdayjobs.com" in client.blocked:
+            raise RateLimited("skipped: Workday already rate-limited this server in this crawl")
         try:  # open the career site once like a browser would, to pick up its session cookie
             client.get_text(f"https://{host}/{site}", max_bytes=200_000, retries=1)
         except Exception:
@@ -203,7 +206,12 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
             while True:
                 try:
                     page = client.post_json(f"{api}/jobs", {"appliedFacets": {}, "limit": 20, "offset": offset,
-                                                            "searchText": q}, headers=headers, retries=5)
+                                                            "searchText": q}, headers=headers, retries=3)
+                except RateLimited:
+                    client.blocked.add("myworkdayjobs.com")   # same server IP: other Workday sites will block too
+                    if out:
+                        return out
+                    raise
                 except Exception:
                     if out:          # keep what we already have instead of losing the whole company
                         return out
@@ -211,6 +219,7 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
                 posts = page.get("jobPostings", [])
                 if total is None:                 # Workday only reports total on the first page
                     total = page.get("total", 0)
+                out.scanned += len(posts)
                 for p in posts:
                     path = p.get("externalPath", "")
                     if not path or path in seen:
@@ -252,3 +261,7 @@ FETCHERS = {
 
 from .generic import jibe as _jibe, sitemap as _sitemap  # noqa: E402  (fallbacks for other careers sites)
 FETCHERS.update(jibe=_jibe, sitemap=_sitemap)
+
+from . import more_sources as _more  # noqa: E402
+FETCHERS.update(recruitee=_more.recruitee, workable=_more.workable, breezy=_more.breezy,
+                oracle=_more.oracle, eightfold=_more.eightfold)

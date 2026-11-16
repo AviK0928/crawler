@@ -3,7 +3,7 @@ company name) into a source entry the crawler understands."""
 import re
 from urllib.parse import urlparse
 
-from . import generic, sources
+from . import generic, more_sources, sources
 from .http import NotFound, assert_public_url
 
 # job-board URL patterns, both as pasted and as embedded in a company's own careers page
@@ -15,7 +15,13 @@ PATTERNS = [
     ("ashby", re.compile(r"jobs\.ashbyhq\.com/([\w.%-]+)", re.I)),
     ("smartrecruiters", re.compile(r"(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)", re.I)),
     ("workday", re.compile(r"(https?://[\w-]+\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?[\w-]+)", re.I)),
+    ("recruitee", re.compile(r"(?<![\w.-])([a-z0-9][\w-]*)\.recruitee\.com", re.I)),
+    ("workable", re.compile(r"apply\.workable\.com/api/v1/widget/accounts/([\w-]+)", re.I)),
+    ("workable", re.compile(r"apply\.workable\.com/(?!api\b|j/)([\w-]+)", re.I)),
+    ("breezy", re.compile(r"(?<![\w.-])([a-z0-9][\w-]*)\.breezy\.hr", re.I)),
+    ("oracle", re.compile(r"(https?://[\w.-]+\.oraclecloud\.com/hcmUI/CandidateExperience/[\w-]+/sites/[\w-]+)", re.I)),
 ]
+NOT_SLUGS = {"www", "app", "api", "careers", "jobs"}
 IGNORE_SLUGS = {"embed", "v1", "jobs", "api", "js", "en", "en-us"}
 
 
@@ -29,7 +35,7 @@ def find_boards(text):
     for ats, pat in PATTERNS:
         for m in pat.finditer(text):
             ident = m.group(1).rstrip("/.")
-            if ats != "workday" and ident.lower() in IGNORE_SLUGS:
+            if ats not in ("workday", "oracle") and (ident.lower() in IGNORE_SLUGS or ident.lower() in NOT_SLUGS):
                 continue
             if (ats, ident) not in found and not any(a == ats and i.lower() == ident.lower() for a, i in found):
                 found.append((ats, ident))
@@ -44,6 +50,8 @@ def _count(client, ats, ident):
         if not page.get("totalFound"):
             raise NotFound(ident)
         return page["totalFound"]
+    if ats == "oracle":
+        return more_sources.oracle_count(client, ident)
     if ats == "workday":
         host, tenant, site = sources.parse_workday_url(ident)
         page = client.post_json(f"https://{host}/wday/cxs/{tenant}/{site}/jobs",
@@ -81,17 +89,24 @@ def resolve(text, client):
             # a company's own careers page: look for an embedded job board in its HTML
             _safe_public_url(url)
             try:
-                boards = find_boards(client.get_text(url))
+                html = client.get_text(url)
+                boards = find_boards(html)
             except Exception:
-                boards = []
+                html, boards = "", []
+        else:
+            html = ""
         for ats, ident in boards:
             try:
                 n = _count(client, ats, ident)
                 return {"name": _pretty(ident), "ats": ats, "id": ident, "jobs": n}
             except Exception:
                 continue
-        # no known job board: try the Jibe feed, then the site's sitemap + Google-for-Jobs data
+        # no known job board: try Eightfold, the Jibe feed, then the sitemap + Google-for-Jobs data
         _safe_public_url(url)
+        ef = more_sources.probe_eightfold(client, url, html)
+        if ef:
+            ident, n = ef
+            return {"name": ident["domain"].split(".")[0].title(), "ats": "eightfold", "id": ident, "jobs": n}
         found = generic.probe(client, url)
         if found:
             ats, ident, n = found
@@ -110,7 +125,7 @@ def resolve(text, client):
                          "job from the site, or the company name.")
 
     slugs, sr_slugs = _name_guesses(text)
-    for ats in ("greenhouse", "lever", "ashby"):
+    for ats in ("greenhouse", "lever", "ashby", "workable", "recruitee"):
         for s in slugs:
             try:
                 n = _count(client, ats, s)

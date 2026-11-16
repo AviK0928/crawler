@@ -37,6 +37,10 @@ class RateLimited(Exception):
     """Still getting HTTP 429 after all retries."""
 
 
+class CrawlTimeout(Exception):
+    """The crawl's overall time budget ran out."""
+
+
 class HttpClient:
     def __init__(self, min_interval=0.5, timeout=20, retries=3, host_intervals=None):
         self.min_interval = min_interval
@@ -46,6 +50,8 @@ class HttpClient:
         self._last = {}
         self._lock = threading.Lock()
         # cookies: some boards (Workday) set a session cookie on the first page view
+        self.deadline = None          # time.monotonic() value after which every request fails fast
+        self.blocked = set()          # host suffixes that rate-limited us during this crawl
         self._opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
@@ -55,6 +61,17 @@ class HttpClient:
                 return iv
         return self.min_interval
 
+    def _check_deadline(self):
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            raise CrawlTimeout("crawl time limit reached")
+
+    def _sleep(self, seconds):
+        if self.deadline is not None:
+            seconds = min(seconds, max(0.0, self.deadline - time.monotonic()))
+        if seconds > 0:
+            time.sleep(seconds)
+        self._check_deadline()
+
     def _wait_turn(self, host):
         with self._lock:
             now = time.monotonic()
@@ -62,7 +79,7 @@ class HttpClient:
             delay = max(0.0, next_ok - now)
             self._last[host] = now + delay
         if delay:
-            time.sleep(delay)
+            self._sleep(delay)
 
     def _request(self, url, data=None, accept="application/json", max_bytes=None, headers=None, retries=None):
         host = urlparse(url).netloc
@@ -75,6 +92,7 @@ class HttpClient:
         retries = self.retries if retries is None else retries
         last_err = None
         for attempt in range(retries):
+            self._check_deadline()
             self._wait_turn(host)
             req = urllib.request.Request(url, data=body, headers=hdrs)
             try:
@@ -87,18 +105,18 @@ class HttpClient:
                     last_err = RateLimited(f"HTTP 429 Too Many Requests from {host}")
                     ra = e.headers.get("Retry-After") if e.headers else None
                     if attempt < retries - 1:
-                        time.sleep(min(float(ra), 60) if ra and ra.isdigit() else min(60, 5 * 2 ** attempt))
+                        self._sleep(min(float(ra), 30) if ra and ra.isdigit() else min(30, 5 * 2 ** attempt))
                     continue
                 if e.code in (500, 502, 503, 504):
                     last_err = e
                     if attempt < retries - 1:
-                        time.sleep(2 ** attempt)
+                        self._sleep(2 ** attempt)
                     continue
                 raise
             except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
                 last_err = e
                 if attempt < retries - 1:
-                    time.sleep(2 ** attempt)
+                    self._sleep(2 ** attempt)
         raise last_err
 
     def get_json(self, url, headers=None, retries=None):

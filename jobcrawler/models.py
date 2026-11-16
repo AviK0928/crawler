@@ -35,3 +35,10 @@ class Job:
     @property
     def key(self):
         return f"{self.source}:{self.company}:{self.job_id}"
+
+
+class Found(list):
+    """Jobs kept by a fetcher that pre-filters, plus how many postings it looked at."""
+    def __init__(self, items=(), scanned=0):
+        super().__init__(items)
+        self.scanned = scanned

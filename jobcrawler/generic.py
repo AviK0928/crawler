@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import quote, urljoin, urlparse
 
 from .http import NotFound, assert_public_url
-from .models import Job, html_to_text
+from .models import Found, Job, html_to_text
 
 # ---------------------------------------------------------------- Jibe
 
@@ -180,7 +180,7 @@ def sitemap(client, site, keep, max_pages=300):
         urls = [u for u, t in zip(urls, texts) if keep(t, None)]
     host = urlparse(origin).netloc.split(".")
     company = host[-2] if len(host) >= 2 else origin
-    out = []
+    out = Found(scanned=len(texts))
     for u in urls[:max_pages]:
         try:
             parsed = parse_jobposting(client.get_text(u, max_bytes=2_000_000, retries=2), u)
