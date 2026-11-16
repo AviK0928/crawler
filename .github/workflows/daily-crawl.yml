@@ -1,0 +1,24 @@
+# Free backup that needs no server: GitHub runs the crawl every morning (9:00 IST)
+# using companies.json + config.json. Download the result from:
+#   Actions tab > "daily crawl" > latest run > Artifacts > java-sde-jobs
+# You can also run it any time with the "Run workflow" button.
+name: daily crawl
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python -m jobcrawler crawl | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: java-sde-jobs
+          path: out/
+          retention-days: 14
