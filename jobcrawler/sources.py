@@ -9,6 +9,7 @@ pre-filter so we only pull full descriptions for plausible jobs where the API
 needs one extra request per posting.
 """
 import re
+import threading
 from urllib.parse import quote, urlencode, urlparse
 
 from .http import NotFound
@@ -90,11 +91,13 @@ def parse_ashby(data, slug):
     return out
 
 
-def smartrecruiters(client, slug, keep):
+def smartrecruiters(client, slug, keep, country="in"):
+    """`country` (ISO code, e.g. "in") filters on SmartRecruiters' side; big companies have 1000s of postings."""
     out, offset = [], 0
+    cq = f"&country={quote(country)}" if country else ""
     while True:
         page = client.get_json(
-            f"https://api.smartrecruiters.com/v1/companies/{quote(slug)}/postings?limit=100&offset={offset}")
+            f"https://api.smartrecruiters.com/v1/companies/{quote(slug)}/postings?limit=100&offset={offset}{cq}")
         content = page.get("content", [])
         for p in content:
             job = parse_smartrecruiters_summary(p, slug)
@@ -181,42 +184,60 @@ def parse_workday_url(url):
     return host, tenant, parts[0]
 
 
-def workday(client, url, keep, searches=("software engineer", "java developer"), max_per_search=200):
+# Workday rate-limits aggressively, so all Workday companies are crawled one at a time
+WORKDAY_LOCK = threading.Lock()
+
+
+def workday(client, url, keep, searches=("software engineer", "java"), max_per_search=200):
     host, tenant, site = parse_workday_url(url)
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
+    headers = {"Origin": f"https://{host}", "Referer": f"https://{host}/{site}"}
     seen, out = set(), []
-    for q in searches:
-        offset, total = 0, None
-        while True:
-            page = client.post_json(f"{api}/jobs", {"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": q})
-            posts = page.get("jobPostings", [])
-            if total is None:                 # Workday only reports total on the first page
-                total = page.get("total", 0)
-            for p in posts:
-                path = p.get("externalPath", "")
-                if not path or path in seen:
-                    continue
-                seen.add(path)
-                loc = p.get("locationsText", "")
-                multi = bool(_WD_MULTI.match(loc))
-                if not keep(p.get("title", ""), None if multi else loc):
-                    continue
-                job = Job(source="workday", company=tenant, job_id=path.rsplit("_", 1)[-1] or path,
-                          title=p.get("title", ""), location=loc,
-                          url=f"https://{host}/{site}{path}", posted=p.get("postedOn", ""))
+    with WORKDAY_LOCK:
+        try:  # open the career site once like a browser would, to pick up its session cookie
+            client.get_text(f"https://{host}/{site}", max_bytes=200_000, retries=1)
+        except Exception:
+            pass
+        for q in searches:
+            offset, total = 0, None
+            while True:
                 try:
-                    info = client.get_json(f"{api}{path}").get("jobPostingInfo", {})
-                    job.description = html_to_text(info.get("jobDescription", ""))
-                    locs = [info.get("location", "")] + list(info.get("additionalLocations") or [])
-                    if multi or not job.location:
-                        job.location = " / ".join(l for l in locs if l)
-                    job.url = info.get("externalUrl") or job.url
-                except NotFound:
-                    pass
-                out.append(job)
-            offset += len(posts)
-            if not posts or offset >= total or offset >= max_per_search:
-                break
+                    page = client.post_json(f"{api}/jobs", {"appliedFacets": {}, "limit": 20, "offset": offset,
+                                                            "searchText": q}, headers=headers, retries=5)
+                except Exception:
+                    if out:          # keep what we already have instead of losing the whole company
+                        return out
+                    raise
+                posts = page.get("jobPostings", [])
+                if total is None:                 # Workday only reports total on the first page
+                    total = page.get("total", 0)
+                for p in posts:
+                    path = p.get("externalPath", "")
+                    if not path or path in seen:
+                        continue
+                    seen.add(path)
+                    loc = p.get("locationsText", "")
+                    multi = bool(_WD_MULTI.match(loc))
+                    if not keep(p.get("title", ""), None if multi else loc):
+                        continue
+                    job = Job(source="workday", company=tenant, job_id=path.rsplit("_", 1)[-1] or path,
+                              title=p.get("title", ""), location=loc,
+                              url=f"https://{host}/{site}{path}", posted=p.get("postedOn", ""))
+                    try:
+                        info = client.get_json(f"{api}{path}", headers=headers, retries=2).get("jobPostingInfo", {})
+                        job.description = html_to_text(info.get("jobDescription", ""))
+                        locs = [info.get("location", "")] + list(info.get("additionalLocations") or [])
+                        if multi or not job.location:
+                            job.location = " / ".join(l for l in locs if l)
+                        job.url = info.get("externalUrl") or job.url
+                    except Exception:
+                        pass         # keep the job even if its description couldn't be fetched
+                    if multi and job.location == loc:
+                        continue     # couldn't learn where a multi-location job is
+                    out.append(job)
+                offset += len(posts)
+                if not posts or offset >= total or offset >= max_per_search:
+                    break
     return out
 
 

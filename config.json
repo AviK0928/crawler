@@ -19,14 +19,16 @@
   ],
   "allow_remote_anywhere": false,
   "include_internships": false,
-  "max_years_experience": 2,
+  "max_years_experience": 1,
   "require_java": false,
   "min_score": 20,
   "workers": 8,
   "min_seconds_between_requests_per_host": 0.5,
   "workday_searches": [
     "software engineer",
-    "java developer",
-    "software development engineer"
-  ]
+    "java"
+  ],
+  "workday_seconds_between_requests": 1.5,
+  "smartrecruiters_country": "in",
+  "require_stated_experience": false
 }

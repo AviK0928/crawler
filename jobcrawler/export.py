@@ -5,7 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-COLS = [("Score", 8), ("Company", 18), ("Title", 48), ("Location", 32), ("Min yrs", 8),
+COLS = [("Score", 8), ("Company", 18), ("Title", 48), ("Location", 32), ("Exp asked (yrs)", 10),
         ("Posted", 14), ("Why it matched", 50), ("Source", 14), ("Link", 60)]
 
 

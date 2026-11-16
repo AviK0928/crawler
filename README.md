@@ -65,22 +65,36 @@ the daily GitHub crawl), click **Copy my added sources (JSON)** and paste the li
 {"name": "Walmart", "ats": "workday",    "id": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"},
 {"name": "Amazon",  "ats": "amazon",     "id": {"base_query": "java", "country": "IND"}}
 ```
-The starter list contains best guesses. Any that are wrong appear under "sources failed"
-after a crawl; remove them or re-add them through the page.
+Any company that fails appears under "sources failed" after a crawl. PhonePe and Postman use
+Greenhouse but have its public job feed switched off, so they can't be crawled. Rippling, Zepto and
+Upstox use their own sites.
+
+**Workday and "429 Too Many Requests":** Workday limits how fast one server can ask for jobs.
+The crawler visits Workday companies one at a time, waits between requests, retries 429s with longer
+pauses and keeps partial results. Workday may still block cloud servers at busy times. If it does,
+run the crawl again later, or use the GitHub Actions daily crawl, which runs from different IPs.
 
 **Not supported:** companies with fully custom career sites (Google, Microsoft, Flipkart…), and
 LinkedIn/Naukri, which ban automated scraping.
 
 ## How jobs are scored
 
-Titles with Senior / Staff / Lead / Manager / II / III / SDE-2 are dropped, as are jobs asking for
-more experience than your limit (default 2 years) and jobs outside your locations. The rest get points:
+Titles with Senior / Staff / Lead / Manager / II / III / SDE-2 are dropped, as are jobs outside your locations.
+
+**Experience filter (default: 0–1 years).** The crawler reads every experience requirement in the
+title and description ("3+ years of experience", "Experience: 2-4 years", "two years'…", "(3-5 yrs)")
+and uses the **strictest** one. A posting saying "3+ years of experience … 1+ year with AWS" counts as
+3 years and is dropped. Ranges count by their lower end ("1-3 years" = 1). Jobs that never state a
+number are kept and labelled *experience not stated*. Tick **hide jobs that don't say how much
+experience they need** to drop those too.
+
+The rest get points:
 
 | Signal | Points |
 |---|---|
 | Entry-level title (SDE-1, new grad, associate, junior…) | +35 (+15 if only in description) |
 | Java in title / Java, Spring, JVM in description | +30 / +20 |
-| Asks for ≤1 year experience / 2 years | +25 / +10 |
+| Asks for 0–1 years experience | +25 |
 | Stack overlap (Kafka, Postgres, REST, microservices, AWS…) | up to +15 |
 | Backend in title | +10 |
 

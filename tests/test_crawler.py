@@ -58,6 +58,12 @@ class Years(unittest.TestCase):
             "2+ yrs exp in backend": 2,
             "We are 10 years old. Experience with Java is a plus": None,
             "1+ years of non-internship professional software development experience": 1,
+            "3+ years of professional experience. 1+ years experience with AWS": 3,   # strictest wins
+            "Experience: 2-4 years": 2,
+            "experience of 3+ years in backend": 3,
+            "two years of relevant experience": 2,
+            "Requires 3.5 years to 6 years of experience": 3.5,
+            "Bachelor's degree. 4+ years' experience with distributed systems": 4,
         }
         for text, want in cases.items():
             self.assertEqual(scoring.min_years(text), want, text)
@@ -69,6 +75,17 @@ class Scoring(unittest.TestCase):
                 desc="0-2 years of experience. Java, Spring Boot, PostgreSQL, Kafka, REST APIs, microservices.")
         self.assertTrue(scoring.score(j, CFG))
         self.assertGreaterEqual(j.score, 90)
+
+    def test_strict_zero_to_one(self):
+        cfg = {**CFG, "max_years_experience": 1}
+        self.assertFalse(scoring.score(job("Software Engineer", desc="2+ years of Java experience"), cfg))
+        self.assertFalse(scoring.score(job("Software Engineer", desc="1+ year with AWS. 3+ years of experience in Java"), cfg))
+        self.assertFalse(scoring.score(job("Software Engineer (3-5 yrs)", desc="Java"), cfg))
+        self.assertTrue(scoring.score(job("Software Engineer", desc="0-1 years of experience with Java"), cfg))
+        unstated = job("Java Developer", desc="Java, Spring")
+        self.assertTrue(scoring.score(unstated, cfg))
+        self.assertIn("experience not stated", unstated.reasons)
+        self.assertFalse(scoring.score(job("Java Developer", desc="Java"), {**cfg, "require_stated_experience": True}))
 
     def test_too_much_experience_dropped(self):
         j = job("Software Engineer", desc="5+ years of experience building Java services")

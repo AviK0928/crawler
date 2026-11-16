@@ -9,7 +9,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import scoring, sources
-from .http import HttpClient, NotFound
+from .http import HttpClient, NotFound, RateLimited
 
 
 def entry_label(e):
@@ -23,7 +23,8 @@ def entry_key(e):
 
 def run_crawl(entries, cfg, log=print, client=None):
     """Returns (matches sorted by score, errors [(label, msg)], scanned_count)."""
-    client = client or HttpClient(min_interval=cfg.get("min_seconds_between_requests_per_host", 0.5))
+    client = client or HttpClient(min_interval=cfg.get("min_seconds_between_requests_per_host", 0.5),
+                                  host_intervals={"myworkdayjobs.com": cfg.get("workday_seconds_between_requests", 1.5)})
 
     def keep(title, location):
         return scoring.title_ok(title, cfg) and (location is None or scoring.location_ok(location, cfg))
@@ -32,6 +33,8 @@ def run_crawl(entries, cfg, log=print, client=None):
         fn = sources.FETCHERS[e["ats"]]
         if e["ats"] == "workday":
             return fn(client, e["id"], keep, searches=tuple(cfg.get("workday_searches", ["software engineer"])))
+        if e["ats"] == "smartrecruiters":
+            return fn(client, e["id"], keep, country=cfg.get("smartrecruiters_country", "in"))
         return fn(client, e["id"], keep)
 
     entries = [e for e in entries if e.get("ats") in sources.FETCHERS and e.get("id")]
@@ -50,6 +53,11 @@ def run_crawl(entries, cfg, log=print, client=None):
             except NotFound:
                 errors.append((label, "board not found (wrong slug or company moved job sites)"))
                 log(f"✗ {label}: not found")
+                continue
+            except RateLimited:
+                errors.append((label, "rate-limited (HTTP 429) by the job site; try again later"))
+                log(f"✗ {label}: rate-limited (429), try again later")
+                continue
             except Exception as ex:  # one broken board shouldn't kill the run
                 errors.append((label, f"{type(ex).__name__}: {ex}"[:200]))
                 log(f"✗ {label}: {type(ex).__name__}: {ex}"[:200])

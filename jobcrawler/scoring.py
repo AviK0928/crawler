@@ -31,17 +31,53 @@ JAVA_ADJ = re.compile(
     r"\b(kotlin|microservices?|rest(ful)? apis?|postgres(ql)?|sql|kafka|aws|"
     r"distributed systems|backend|object[\s-]oriented|data structures)\b", re.I)
 
-# "3+ years", "2-4 years", "minimum of 5 years", "5 or more years"
-YEARS = re.compile(
-    r"(?:minimum (?:of )?|at least |)(\d{1,2})\s*(?:\+|(?:-|–|to)\s*\d{1,2}|or more)?\s*\+?\s*"
-    r"(?:years?|yrs?)(?:'|’)?\s*(?:of\s+)?(?:[\w-]+\s+){0,5}?(?:experience|exp\b)", re.I)
+_WORDNUM = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+            "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twelve": 12, "fifteen": 15}
+_NUM = r"(\d{1,2}(?:\.\d)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen)"
+_RANGE_TAIL = r"\s*(?:\+|plus|(?:-|–|—|to)\s*" + _NUM + r"|or more|or above)?\s*\+?\s*"
+_YRS = r"(?:years?|yrs?)(?:'|’)?"
+
+# "3+ years of (professional software) experience", "2-4 yrs exp", "minimum of 5 years' experience"
+YEARS_BEFORE = re.compile(
+    r"(?:minimum (?:of )?|at least |)" + _NUM + _RANGE_TAIL + _YRS +
+    r"\s*(?:of\s+)?(?:[\w/&()-]+\s+){0,6}?(?:experience|exp\b)", re.I)
+# "experience of 3+ years", "Experience: 2-4 years", "experience (min 3 yrs)", "exp - 5 yrs"
+YEARS_AFTER = re.compile(
+    r"\b(?:experience|exp)\b\s*(?:of|:|-|–|\(|required|needed)?\s*(?:minimum|min\.?|at least)?\s*(?:of\s+)?"
+    + _NUM + _RANGE_TAIL + _YRS, re.I)
 
 
-def min_years(text):
-    """Smallest 'N years experience' requirement mentioned, ignoring absurd values."""
-    vals = [int(m.group(1)) for m in YEARS.finditer(text or "")]
-    vals = [v for v in vals if v <= 20]
-    return min(vals) if vals else None
+def _num(tok):
+    tok = tok.lower()
+    return float(_WORDNUM[tok]) if tok in _WORDNUM else float(tok)
+
+
+def required_years(text):
+    """Experience the posting asks for, in years (None if it never says).
+
+    Each mention counts by its lower bound ("2-4 years" -> 2) and the posting counts by its
+    STRICTEST mention: "3+ years of experience ... 1+ year of AWS experience" -> 3.
+    """
+    vals = []
+    for pat in (YEARS_BEFORE, YEARS_AFTER):
+        for m in pat.finditer(text or ""):
+            v = _num(m.group(1))
+            if v <= 25:
+                vals.append(v)
+    if not vals:
+        return None
+    v = max(vals)
+    return int(v) if v == int(v) else v
+
+
+min_years = required_years   # old name
+
+TITLE_YEARS = re.compile(_NUM + _RANGE_TAIL + _YRS, re.I)   # "Software Engineer (3-5 yrs)"
+
+
+def title_years(title):
+    vals = [_num(m.group(1)) for m in TITLE_YEARS.finditer(title or "")]
+    return max(vals) if vals else None
 
 
 def location_ok(location, cfg):
@@ -78,14 +114,21 @@ def score(job, cfg):
     text = f"{job.title}\n{job.description}"
     reasons, s = [], 0
 
-    yrs = min_years(job.description)
+    yrs = required_years(text)
+    ty = title_years(job.title)
+    if ty is not None and (yrs is None or ty > yrs):
+        yrs = int(ty) if ty == int(ty) else ty
     job.years_min = yrs
     if yrs is not None and yrs > cfg["max_years_experience"]:
         return False
-    if yrs is not None and yrs <= 1:
-        s += 25; reasons.append(f"min {yrs} yrs exp")
-    elif yrs == 2:
-        s += 10; reasons.append("min 2 yrs exp")
+    if yrs is None and cfg.get("require_stated_experience"):
+        return False
+    if yrs is None:
+        reasons.append("experience not stated")
+    elif yrs <= 1:
+        s += 25; reasons.append(f"asks {yrs} yrs exp")
+    else:
+        s += 5; reasons.append(f"asks {yrs} yrs exp")
 
     if ENTRY_SIGNALS.search(job.title):
         s += 35; reasons.append("entry-level title")

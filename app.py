@@ -62,7 +62,8 @@ def defaults():
     for c in companies:
         c["key"] = entry_key(c)
     return jsonify(companies=companies, settings={k: cfg[k] for k in
-                   ("locations", "max_years_experience", "require_java", "include_internships", "min_score")})
+                   ("locations", "max_years_experience", "require_java", "include_internships",
+                    "require_stated_experience", "min_score")})
 
 
 @app.post("/api/resolve")
@@ -87,7 +88,7 @@ def _settings(user):
                 cfg[k] = max(0, min(30, cast(user[k]))) if k == "max_years_experience" else max(0, cast(user[k]))
             except (TypeError, ValueError):
                 pass
-    for k in ("require_java", "include_internships"):
+    for k in ("require_java", "include_internships", "require_stated_experience"):
         if k in user:
             cfg[k] = bool(user[k])
     return cfg

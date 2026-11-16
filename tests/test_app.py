@@ -47,7 +47,7 @@ class FakeClient(HttpClient):
         super().__init__(min_interval=0)
         self.calls = []
 
-    def get_json(self, url):
+    def get_json(self, url, **kw):
         self.calls.append(("GET", url))
         if "greenhouse.io/v1/boards/stripe/" in url:
             return GH_STRIPE
@@ -66,7 +66,7 @@ class FakeClient(HttpClient):
                 return WD_DETAIL[path]
         raise NotFound(url)
 
-    def post_json(self, url, data):
+    def post_json(self, url, data, **kw):
         self.calls.append(("POST", url))
         if url == "https://walmart.wd5.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/jobs":
             if data["offset"] == 0:
@@ -74,7 +74,7 @@ class FakeClient(HttpClient):
             return {"total": 0, "jobPostings": []}
         raise NotFound(url)
 
-    def get_text(self, url, max_bytes=0):
+    def get_text(self, url, max_bytes=0, **kw):
         self.calls.append(("PAGE", url))
         if "razorpay.com/jobs" in url:
             return '<html><a href="https://jobs.lever.co/razorpay/abc">Apply</a></html>'
@@ -103,6 +103,52 @@ class Workday(unittest.TestCase):
         multi = next(j for j in jobs if j.title == "Java Developer")
         self.assertEqual(multi.location, "Chennai, India / Austin, TX")   # filled in from detail
         self.assertFalse(any("SE-III" in u for _, u in c.calls))          # never fetched the senior job
+
+
+class Robustness(unittest.TestCase):
+    def test_workday_keeps_partial_results_when_rate_limited(self):
+        from jobcrawler.http import RateLimited
+        c = FakeClient()
+        orig = c.post_json
+        def flaky(url, data, **kw):
+            if data["searchText"] == "java":
+                raise RateLimited("429")
+            return orig(url, data, **kw)
+        c.post_json = flaky
+        keep = lambda t, l: engine.scoring.title_ok(t, CFG) and (l is None or engine.scoring.location_ok(l, CFG))
+        jobs = sources.workday(c, "https://walmart.wd5.myworkdayjobs.com/WalmartExternal", keep,
+                               searches=("software engineer", "java"))
+        self.assertEqual(len(jobs), 2)   # first search's results survive the 429 on the second
+
+    def test_rate_limit_reported_cleanly(self):
+        from jobcrawler.http import RateLimited
+        c = FakeClient()
+        def blocked(url, data, **kw):
+            raise RateLimited("429")
+        c.post_json = blocked
+        _, errors, _ = engine.run_crawl([{"name": "NVIDIA", "ats": "workday",
+                                          "id": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"}],
+                                        CFG, log=lambda m: None, client=c)
+        self.assertIn("rate-limited", errors[0][1])
+
+    def test_smartrecruiters_country_filter(self):
+        c = FakeClient()
+        c.get_json = lambda url, **kw: (c.calls.append(url), {"totalFound": 0, "content": []})[1]
+        sources.smartrecruiters(c, "Visa", lambda t, l: True, country="in")
+        self.assertIn("&country=in", c.calls[0])
+
+    def test_http_client_retries_429_then_raises(self):
+        import urllib.error
+        from jobcrawler.http import RateLimited
+        hc = HttpClient(min_interval=0, retries=3)
+        n = {"calls": 0}
+        def opener(req, timeout):
+            n["calls"] += 1
+            raise urllib.error.HTTPError(req.full_url, 429, "Too Many", {"Retry-After": "0"}, None)
+        hc._opener.open = opener
+        with self.assertRaises(RateLimited):
+            hc.get_json("https://example.com/x")
+        self.assertEqual(n["calls"], 3)
 
 
 class Resolve(unittest.TestCase):

@@ -85,6 +85,7 @@
       <label><input type="number" id="maxYears" min="0" max="30"> max years of experience asked for</label>
       <label><input type="number" id="minScore" min="0"> minimum match score (higher = fewer, better matches)</label>
       <label><input type="checkbox" id="requireJava"> only jobs that mention Java / Spring / JVM</label>
+      <label><input type="checkbox" id="requireStated"> hide jobs that don't say how much experience they need</label>
       <label><input type="checkbox" id="internships"> include internships</label>
       <div class="small muted" style="margin-top:8px">Locations (comma-separated, whole-word match)</div>
       <textarea id="locations"></textarea>
@@ -114,7 +115,7 @@
       <table>
         <thead><tr>
           <th data-k="score">Score</th><th data-k="company">Company</th><th data-k="title">Title</th>
-          <th data-k="location">Location</th><th data-k="years_min">Min yrs</th><th data-k="posted">Posted</th>
+          <th data-k="location">Location</th><th data-k="years_min">Exp asked</th><th data-k="posted">Posted</th>
           <th>Why</th><th>Status</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -197,14 +198,16 @@ function loadSettings() {
   const s = { ...defaultSettings, ...store.get('settings', {}) };
   $('maxYears').value = s.max_years_experience; $('minScore').value = s.min_score;
   $('requireJava').checked = !!s.require_java; $('internships').checked = !!s.include_internships;
+  $('requireStated').checked = !!s.require_stated_experience;
   $('locations').value = (s.locations || []).join(', ');
 }
 function readSettings() {
   return { max_years_experience: +$('maxYears').value, min_score: +$('minScore').value,
            require_java: $('requireJava').checked, include_internships: $('internships').checked,
+           require_stated_experience: $('requireStated').checked,
            locations: $('locations').value.split(',').map(x => x.trim()).filter(Boolean) };
 }
-['maxYears','minScore','requireJava','internships','locations'].forEach(id => $(id).addEventListener('change', () => store.set('settings', readSettings())));
+['maxYears','minScore','requireJava','internships','requireStated','locations'].forEach(id => $(id).addEventListener('change', () => store.set('settings', readSettings())));
 $('resetBtn').onclick = () => { store.set('settings', {}); loadSettings() };
 
 // ---------- crawl ----------
