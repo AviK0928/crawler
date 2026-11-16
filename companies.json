@@ -1,0 +1,38 @@
+[
+  {"name": "Amazon", "ats": "amazon", "id": {"base_query": "software development engineer", "country": "IND"}},
+  {"name": "Amazon (Java)", "ats": "amazon", "id": {"base_query": "java", "country": "IND"}},
+
+  {"name": "Walmart Global Tech", "ats": "workday", "id": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"},
+  {"name": "Salesforce", "ats": "workday", "id": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site"},
+  {"name": "PayPal", "ats": "workday", "id": "https://paypal.wd1.myworkdayjobs.com/jobs"},
+  {"name": "Mastercard", "ats": "workday", "id": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"},
+  {"name": "NVIDIA", "ats": "workday", "id": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
+  {"name": "Adobe", "ats": "workday", "id": "https://adobe.wd5.myworkdayjobs.com/external_experienced"},
+
+  {"name": "Stripe", "ats": "greenhouse", "id": "stripe"},
+  {"name": "Databricks", "ats": "greenhouse", "id": "databricks"},
+  {"name": "MongoDB", "ats": "greenhouse", "id": "mongodb"},
+  {"name": "Okta", "ats": "greenhouse", "id": "okta"},
+  {"name": "Twilio", "ats": "greenhouse", "id": "twilio"},
+  {"name": "Rubrik", "ats": "greenhouse", "id": "rubrik"},
+  {"name": "Cloudflare", "ats": "greenhouse", "id": "cloudflare"},
+  {"name": "Pure Storage", "ats": "greenhouse", "id": "purestorage"},
+  {"name": "Coinbase", "ats": "greenhouse", "id": "coinbase"},
+  {"name": "PhonePe", "ats": "greenhouse", "id": "phonepe"},
+  {"name": "Postman", "ats": "greenhouse", "id": "postman"},
+  {"name": "Groww", "ats": "greenhouse", "id": "groww"},
+
+  {"name": "CRED", "ats": "lever", "id": "cred"},
+  {"name": "Razorpay", "ats": "lever", "id": "razorpay"},
+  {"name": "Paytm", "ats": "lever", "id": "paytm"},
+  {"name": "Meesho", "ats": "lever", "id": "meesho"},
+  {"name": "Zeta", "ats": "lever", "id": "zeta"},
+  {"name": "Upstox", "ats": "lever", "id": "upstox"},
+
+  {"name": "Zepto", "ats": "ashby", "id": "zepto"},
+  {"name": "Rippling", "ats": "ashby", "id": "rippling"},
+
+  {"name": "Visa", "ats": "smartrecruiters", "id": "Visa"},
+  {"name": "ServiceNow", "ats": "smartrecruiters", "id": "ServiceNow"},
+  {"name": "Freshworks", "ats": "smartrecruiters", "id": "Freshworks"}
+]

@@ -1,0 +1,130 @@
+"""Turns whatever the user pastes (a careers-page URL, a job-board URL, or just a
+company name) into a source entry the crawler understands."""
+import ipaddress
+import re
+import socket
+from urllib.parse import parse_qs, urlparse
+
+from . import sources
+from .http import NotFound
+
+# job-board URL patterns, both as pasted and as embedded in a company's own careers page
+PATTERNS = [
+    ("greenhouse", re.compile(r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/embed/job_board(?:/js)?\?for=([\w-]+)", re.I)),
+    ("greenhouse", re.compile(r"boards-api\.greenhouse\.io/v1/boards/([\w-]+)", re.I)),
+    ("greenhouse", re.compile(r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?!embed)([\w-]+)", re.I)),
+    ("lever", re.compile(r"jobs(?:\.eu)?\.lever\.co/([\w.-]+)", re.I)),
+    ("ashby", re.compile(r"jobs\.ashbyhq\.com/([\w.%-]+)", re.I)),
+    ("smartrecruiters", re.compile(r"(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)", re.I)),
+    ("workday", re.compile(r"(https?://[\w-]+\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?[\w-]+)", re.I)),
+]
+IGNORE_SLUGS = {"embed", "v1", "jobs", "api", "js", "en", "en-us"}
+
+
+def _safe_public_url(url):
+    """Block requests to localhost / private networks (this runs on a public server)."""
+    u = urlparse(url)
+    if u.scheme not in ("http", "https") or not u.hostname:
+        raise ValueError("Only http(s) links are supported")
+    for info in socket.getaddrinfo(u.hostname, None):
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise ValueError("That address isn't allowed")
+
+
+def find_boards(text):
+    """All (ats, id) job boards referenced in a URL or an HTML page, in order, de-duplicated."""
+    found = []
+    for ats, pat in PATTERNS:
+        for m in pat.finditer(text):
+            ident = m.group(1).rstrip("/.")
+            if ats != "workday" and ident.lower() in IGNORE_SLUGS:
+                continue
+            if (ats, ident) not in found and not any(a == ats and i.lower() == ident.lower() for a, i in found):
+                found.append((ats, ident))
+    return found
+
+
+def _count(client, ats, ident):
+    """Returns number of postings if the board exists, else raises."""
+    nothing = lambda t, l: False
+    if ats == "smartrecruiters":
+        page = client.get_json(f"https://api.smartrecruiters.com/v1/companies/{ident}/postings?limit=1")
+        if not page.get("totalFound"):
+            raise NotFound(ident)
+        return page["totalFound"]
+    if ats == "workday":
+        host, tenant, site = sources.parse_workday_url(ident)
+        page = client.post_json(f"https://{host}/wday/cxs/{tenant}/{site}/jobs",
+                                {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""})
+        return page.get("total", 0)
+    return len(sources.FETCHERS[ats](client, ident, nothing))
+
+
+def _name_guesses(name):
+    base = name.lower().strip()
+    slugs = [re.sub(r"[^a-z0-9]", "", base), re.sub(r"[^a-z0-9]+", "-", base).strip("-"),
+             re.sub(r"[^a-z0-9]", "", base.split()[0]) if base.split() else ""]
+    sr = [re.sub(r"[^A-Za-z0-9]", "", name.title()), name.replace(" ", "")]
+    return [s for s in dict.fromkeys(slugs) if s], [s for s in dict.fromkeys(sr + slugs) if s]
+
+
+def _pretty(ident):
+    return re.sub(r"[-_]+", " ", ident).title() if not ident.startswith("http") else urlparse(ident).netloc.split(".")[0].title()
+
+
+def resolve(text, client):
+    """Returns {"name","ats","id","jobs"} or raises ValueError with a friendly message."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("Paste a careers page link or a company name")
+
+    if "amazon.jobs" in text.lower() or text.lower() in ("amazon", "amazon india"):
+        return {"name": "Amazon", "ats": "amazon", "id": {"base_query": "software development engineer", "country": "IND"}, "jobs": None}
+
+    is_url = bool(re.match(r"^(https?://)?[\w-]+(\.[\w-]+)+(/|$)", text)) and " " not in text
+    if is_url:
+        url = text if "://" in text else "https://" + text
+        boards = find_boards(url)
+        if not boards:
+            # a company's own careers page: look for an embedded job board in its HTML
+            _safe_public_url(url)
+            try:
+                page = client.get_text(url)
+            except Exception as ex:
+                raise ValueError(f"Couldn't open that page ({type(ex).__name__}). Try the company name instead.")
+            boards = find_boards(page)
+        for ats, ident in boards:
+            try:
+                n = _count(client, ats, ident)
+                return {"name": _pretty(ident), "ats": ats, "id": ident, "jobs": n}
+            except Exception:
+                continue
+        # last resort: guess from the domain, e.g. https://razorpay.com/jobs -> "razorpay"
+        host = urlparse(url).hostname or ""
+        parts = [p for p in host.split(".") if p not in ("www", "careers", "jobs", "com", "in", "co", "io", "org", "net")]
+        if parts and not boards:
+            try:
+                return resolve(parts[0], client)
+            except ValueError:
+                pass
+        raise ValueError("Couldn't find a supported job board on that page. It probably uses its own system "
+                         "(supported: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Amazon). "
+                         "Tip: click any job on their site and paste that job's link.")
+
+    slugs, sr_slugs = _name_guesses(text)
+    for ats in ("greenhouse", "lever", "ashby"):
+        for s in slugs:
+            try:
+                n = _count(client, ats, s)
+                if n:
+                    return {"name": text.strip().title(), "ats": ats, "id": s, "jobs": n}
+            except Exception:
+                pass
+    for s in sr_slugs:
+        try:
+            return {"name": text.strip().title(), "ats": "smartrecruiters", "id": s, "jobs": _count(client, "smartrecruiters", s)}
+        except Exception:
+            pass
+    raise ValueError(f"Couldn't find “{text}” on Greenhouse, Lever, Ashby or SmartRecruiters. "
+                     "Paste their careers page link instead (Workday links work too).")

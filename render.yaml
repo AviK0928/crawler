@@ -1,0 +1,16 @@
+# One-click deploy on Render's free plan: New + > Blueprint > pick this repo.
+services:
+  - type: web
+    name: java-job-finder
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # 1 worker so crawl state stays in one process; threads serve the UI while a crawl runs
+    startCommand: gunicorn app:app --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_PASSWORD      # optional: set a value in the Render dashboard to password-protect the site
+        sync: false

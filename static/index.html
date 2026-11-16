@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Java SDE Job Finder</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#677084; --line:#e4e7ec;
+          --accent:#1f5eff; --accent-ink:#fff; --good:#13795b; --bad:#b42318; --new:#e9f7ef; }
+  * { box-sizing:border-box }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink) }
+  header { padding:20px 24px 8px; max-width:1200px; margin:auto }
+  header h1 { margin:0; font-size:22px }
+  header p { margin:4px 0 0; color:var(--muted) }
+  main { max-width:1200px; margin:auto; padding:8px 24px 48px; display:grid; gap:16px }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px }
+  .card h2 { font-size:15px; margin:0 0 10px; display:flex; align-items:center; gap:8px }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  input[type=text], input[type=number], textarea { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:#fff }
+  input[type=text] { flex:1; min-width:240px }
+  textarea { width:100%; min-height:54px }
+  button { font:inherit; padding:8px 14px; border-radius:7px; border:1px solid var(--line); background:#fff; cursor:pointer }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600 }
+  button.big { padding:12px 22px; font-size:15px }
+  button:disabled { opacity:.55; cursor:default }
+  .muted { color:var(--muted) } .small { font-size:12px }
+  .msg { margin-top:8px; font-size:13px } .msg.ok { color:var(--good) } .msg.err { color:var(--bad) }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px } @media (max-width:800px){ .grid2{grid-template-columns:1fr} }
+  .sources { max-height:280px; overflow:auto; border:1px solid var(--line); border-radius:7px; margin-top:8px }
+  .src { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--line) }
+  .src:last-child { border-bottom:0 }
+  .src .name { flex:1 }
+  .badge { font-size:11px; padding:1px 7px; border-radius:20px; background:#eef2ff; color:#3538cd }
+  .badge.mine { background:#ecfdf3; color:var(--good) }
+  .x { border:0; background:none; color:var(--muted); padding:2px 6px }
+  .settings label { display:flex; align-items:center; gap:8px; margin:6px 0 }
+  .settings input[type=number] { width:70px }
+  #log { background:#0f172a; color:#cbd5e1; font:12px/1.5 ui-monospace,Menlo,monospace; border-radius:7px; padding:10px; max-height:180px; overflow:auto; white-space:pre-wrap; margin-top:10px; display:none }
+  table { width:100%; border-collapse:collapse; margin-top:10px }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { font-size:12px; color:var(--muted); cursor:pointer; user-select:none; position:sticky; top:0; background:#fff }
+  tr.new td { background:var(--new) }
+  tr.done td { opacity:.5 }
+  td a { color:var(--accent); text-decoration:none; font-weight:500 } td a:hover { text-decoration:underline }
+  .score { font-weight:700 } .why { color:var(--muted); font-size:12px }
+  .pill { font-size:11px; font-weight:700; color:var(--good) }
+  select { font:inherit; padding:3px; border:1px solid var(--line); border-radius:5px }
+  .tablewrap { max-height:70vh; overflow:auto }
+  details summary { cursor:pointer; color:var(--muted) }
+</style>
+</head>
+<body>
+<header>
+  <h1>Java SDE Job Finder</h1>
+  <p>Entry-level Java / backend openings in India, pulled directly from company job boards.</p>
+</header>
+<main>
+
+  <section class="card">
+    <h2>Add a company</h2>
+    <div class="row">
+      <input type="text" id="addInput" placeholder="Paste a careers page or job link, or type a company name (e.g. Razorpay)">
+      <button class="primary" id="addBtn">Add</button>
+    </div>
+    <div class="small muted" style="margin-top:6px">
+      Works with Greenhouse, Lever, Ashby, SmartRecruiters, Workday (…myworkdayjobs.com) and amazon.jobs links,
+      and with a company's own careers page if it embeds one of those. If a careers page fails, open any job on it and paste that job's link.
+    </div>
+    <div id="addMsg" class="msg"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Sources <span class="muted small" id="srcCount"></span></h2>
+      <div class="row small">
+        <button id="allBtn">Select all</button><button id="noneBtn">Select none</button>
+        <button id="exportBtn" title="Paste into companies.json on GitHub to make them permanent">Copy my added sources (JSON)</button>
+      </div>
+      <div class="sources" id="sources"></div>
+      <div id="exportMsg" class="msg"></div>
+    </section>
+
+    <section class="card settings">
+      <h2>Filters</h2>
+      <label><input type="number" id="maxYears" min="0" max="30"> max years of experience asked for</label>
+      <label><input type="number" id="minScore" min="0"> minimum match score (higher = fewer, better matches)</label>
+      <label><input type="checkbox" id="requireJava"> only jobs that mention Java / Spring / JVM</label>
+      <label><input type="checkbox" id="internships"> include internships</label>
+      <div class="small muted" style="margin-top:8px">Locations (comma-separated, whole-word match)</div>
+      <textarea id="locations"></textarea>
+      <button id="resetBtn" class="small">Reset filters</button>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="row">
+      <button class="primary big" id="crawlBtn">Find jobs</button>
+      <span class="muted" id="crawlStatus">The free server sleeps when idle, so the first click can take ~1 minute to wake it.</span>
+    </div>
+    <div id="log"></div>
+  </section>
+
+  <section class="card" id="results" style="display:none">
+    <h2>Results <span class="muted small" id="summary"></span></h2>
+    <div class="row">
+      <input type="text" id="filter" placeholder="Filter by company, title, city…">
+      <label class="small"><input type="checkbox" id="onlyNew"> only new</label>
+      <label class="small"><input type="checkbox" id="hideDone" checked> hide applied / skipped</label>
+      <button id="xlsxBtn" class="primary">Download XLSX</button>
+      <button id="csvBtn">Download CSV</button>
+    </div>
+    <details id="errors" style="margin-top:10px; display:none"><summary></summary><ul class="small"></ul></details>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th data-k="score">Score</th><th data-k="company">Company</th><th data-k="title">Title</th>
+          <th data-k="location">Location</th><th data-k="years_min">Min yrs</th><th data-k="posted">Posted</th>
+          <th>Why</th><th>Status</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('jc_' + k); return v ? JSON.parse(v) : d } catch { return d } },
+  set(k, v) { try { localStorage.setItem('jc_' + k, JSON.stringify(v)) } catch {} },
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let defaults = [], defaultSettings = {}, custom = store.get('custom', []), disabled = new Set(store.get('disabled', []));
+let jobs = [], runId = null, sortKey = 'score', sortDir = -1, newKeys = new Set();
+const status = store.get('status', {});
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const ct = r.headers.get('content-type') || '';
+  const body = ct.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(body.error || body || r.statusText);
+  return body;
+}
+
+// ---------- sources ----------
+function allSources() { return [...custom.map(c => ({ ...c, mine: true })), ...defaults] }
+function renderSources() {
+  const list = allSources();
+  $('sources').innerHTML = list.map(s => `
+    <div class="src">
+      <input type="checkbox" data-key="${esc(s.key)}" ${disabled.has(s.key) ? '' : 'checked'}>
+      <span class="name">${esc(s.name)}</span>
+      <span class="badge ${s.mine ? 'mine' : ''}">${s.mine ? 'added · ' : ''}${esc(s.ats)}</span>
+      ${s.mine ? `<button class="x" data-del="${esc(s.key)}" title="Remove">✕</button>` : ''}
+    </div>`).join('');
+  const on = list.filter(s => !disabled.has(s.key)).length;
+  $('srcCount').textContent = `${on} of ${list.length} selected`;
+}
+$('sources').addEventListener('change', e => {
+  const k = e.target.dataset.key; if (!k) return;
+  e.target.checked ? disabled.delete(k) : disabled.add(k);
+  store.set('disabled', [...disabled]); renderSources();
+});
+$('sources').addEventListener('click', e => {
+  const k = e.target.dataset.del; if (!k) return;
+  custom = custom.filter(c => c.key !== k); store.set('custom', custom); renderSources();
+});
+$('allBtn').onclick = () => { disabled.clear(); store.set('disabled', []); renderSources() };
+$('noneBtn').onclick = () => { allSources().forEach(s => disabled.add(s.key)); store.set('disabled', [...disabled]); renderSources() };
+$('exportBtn').onclick = async () => {
+  const json = custom.map(({ name, ats, id }) => JSON.stringify({ name, ats, id })).join(',\n');
+  try { await navigator.clipboard.writeText(json); $('exportMsg').className = 'msg ok';
+        $('exportMsg').textContent = custom.length ? 'Copied! Paste these lines into companies.json on GitHub to keep them for good.' : 'You haven\'t added any sources yet.' }
+  catch { $('exportMsg').className = 'msg'; $('exportMsg').innerHTML = '<textarea readonly>' + esc(json) + '</textarea>' }
+};
+
+async function addSource() {
+  const input = $('addInput').value.trim(); if (!input) return;
+  const msg = $('addMsg'); msg.className = 'msg muted'; msg.textContent = 'Looking it up…'; $('addBtn').disabled = true;
+  try {
+    const e = await api('/api/resolve', { method: 'POST', body: JSON.stringify({ input }) });
+    if (allSources().some(s => s.key === e.key)) { msg.className = 'msg ok'; msg.textContent = `${e.name} is already in your list.`; return }
+    custom.unshift({ name: e.name, ats: e.ats, id: e.id, key: e.key }); store.set('custom', custom);
+    disabled.delete(e.key); store.set('disabled', [...disabled]); renderSources();
+    msg.className = 'msg ok';
+    msg.textContent = `Added ${e.name} (${e.ats}${e.jobs != null ? `, ${e.jobs} open jobs in total` : ''}).`;
+    $('addInput').value = '';
+  } catch (err) { msg.className = 'msg err'; msg.textContent = err.message }
+  finally { $('addBtn').disabled = false }
+}
+$('addBtn').onclick = addSource;
+$('addInput').addEventListener('keydown', e => { if (e.key === 'Enter') addSource() });
+
+// ---------- settings ----------
+function loadSettings() {
+  const s = { ...defaultSettings, ...store.get('settings', {}) };
+  $('maxYears').value = s.max_years_experience; $('minScore').value = s.min_score;
+  $('requireJava').checked = !!s.require_java; $('internships').checked = !!s.include_internships;
+  $('locations').value = (s.locations || []).join(', ');
+}
+function readSettings() {
+  return { max_years_experience: +$('maxYears').value, min_score: +$('minScore').value,
+           require_java: $('requireJava').checked, include_internships: $('internships').checked,
+           locations: $('locations').value.split(',').map(x => x.trim()).filter(Boolean) };
+}
+['maxYears','minScore','requireJava','internships','locations'].forEach(id => $(id).addEventListener('change', () => store.set('settings', readSettings())));
+$('resetBtn').onclick = () => { store.set('settings', {}); loadSettings() };
+
+// ---------- crawl ----------
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+$('crawlBtn').onclick = async () => {
+  const sources = allSources().filter(s => !disabled.has(s.key)).map(({ name, ats, id }) => ({ name, ats, id }));
+  if (!sources.length) { $('crawlStatus').textContent = 'Select at least one source.'; return }
+  $('crawlBtn').disabled = true; $('log').style.display = 'block'; $('log').textContent = '';
+  $('crawlStatus').textContent = 'Starting…';
+  try {
+    const { id } = await api('/api/crawl', { method: 'POST', body: JSON.stringify({ sources, settings: readSettings() }) });
+    runId = id; store.set('lastRun', id);
+    await poll(id);
+  } catch (err) { $('crawlStatus').textContent = 'Error: ' + err.message }
+  finally { $('crawlBtn').disabled = false }
+};
+
+async function poll(id) {
+  let since = 0;
+  while (true) {
+    const r = await api(`/api/crawl/${id}?since=${since}`);
+    if (r.log.length) { $('log').textContent += r.log.join('\n') + '\n'; $('log').scrollTop = 1e9 }
+    since = r.log_len;
+    $('crawlStatus').textContent = r.status === 'running' ? `Crawling… ${r.elapsed}s` : (r.status === 'done' ? `Finished in ${r.elapsed}s` : 'Crawl failed');
+    if (r.status !== 'running') { if (r.status === 'done') showResults(r); return }
+    await sleep(1500);
+  }
+}
+
+// ---------- results ----------
+function showResults(r) {
+  jobs = r.jobs;
+  const seen = new Set(store.get('seen', []));
+  newKeys = new Set(jobs.filter(j => !seen.has(j.key)).map(j => j.key));
+  jobs.forEach(j => seen.add(j.key));
+  store.set('seen', [...seen].slice(-8000));
+  $('summary').textContent = `${jobs.length} matches · ${newKeys.size} new · ${r.scanned} postings scanned`;
+  const errs = r.errors || [];
+  $('errors').style.display = errs.length ? 'block' : 'none';
+  $('errors').querySelector('summary').textContent = `${errs.length} source(s) failed (click to see; remove or fix them)`;
+  $('errors').querySelector('ul').innerHTML = errs.map(([n, m]) => `<li><b>${esc(n)}</b>: ${esc(m)}</li>`).join('');
+  $('results').style.display = 'block';
+  renderJobs();
+}
+
+function visibleJobs() {
+  const q = $('filter').value.toLowerCase();
+  return jobs.filter(j => (!$('onlyNew').checked || newKeys.has(j.key))
+      && (!$('hideDone').checked || !['applied','skipped'].includes(status[j.key]))
+      && (!q || `${j.company} ${j.title} ${j.location} ${j.reasons.join(' ')}`.toLowerCase().includes(q)))
+    .sort((a, b) => { const x = a[sortKey] ?? '', y = b[sortKey] ?? ''; return (x > y ? 1 : x < y ? -1 : 0) * sortDir });
+}
+
+function renderJobs() {
+  const opts = ['', 'applied', 'interviewing', 'skipped'];
+  $('tbody').innerHTML = visibleJobs().map(j => `
+    <tr class="${newKeys.has(j.key) ? 'new' : ''} ${['applied','skipped'].includes(status[j.key]) ? 'done' : ''}">
+      <td class="score">${j.score}${newKeys.has(j.key) ? '<br><span class="pill">NEW</span>' : ''}</td>
+      <td>${esc(j.company)}</td>
+      <td><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a></td>
+      <td>${esc(j.location)}</td><td>${j.years_min ?? ''}</td><td>${esc(j.posted)}</td>
+      <td class="why">${esc(j.reasons.join(' · '))}</td>
+      <td><select data-key="${esc(j.key)}">${opts.map(o => `<option ${status[j.key] === o ? 'selected' : ''} value="${o}">${o || '—'}</option>`).join('')}</select></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">Nothing matches. Try loosening the filters or adding more companies.</td></tr>';
+}
+$('tbody').addEventListener('change', e => {
+  const k = e.target.dataset.key; if (!k) return;
+  e.target.value ? status[k] = e.target.value : delete status[k];
+  store.set('status', status); renderJobs();
+});
+['filter','onlyNew','hideDone'].forEach(id => $(id).addEventListener('input', renderJobs));
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : (k === 'score' ? -1 : 1); sortKey = k; renderJobs();
+});
+
+async function download(fmt) {
+  const shown = new Set(visibleJobs().map(j => j.key));
+  const hide = jobs.filter(j => !shown.has(j.key)).map(j => j.key);   // file matches what's on screen
+  try {
+    const r = await fetch(`/api/crawl/${runId}/download.${fmt}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hide }) });
+    if (!r.ok) throw new Error(await r.text());
+    const blob = await r.blob();
+    const name = (r.headers.get('content-disposition') || '').match(/filename="(.+)"/)?.[1] || `jobs.${fmt}`;
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (err) { alert('Download failed: ' + err.message.slice(0, 200)) }
+}
+$('xlsxBtn').onclick = () => download('xlsx');
+$('csvBtn').onclick = () => download('csv');
+
+// ---------- boot ----------
+(async () => {
+  try {
+    const d = await api('/api/defaults');
+    defaults = d.companies; defaultSettings = d.settings;
+  } catch (err) { $('crawlStatus').textContent = 'Could not load defaults: ' + err.message }
+  renderSources(); loadSettings();
+  const last = store.get('lastRun');
+  if (last) { try { const r = await api(`/api/crawl/${last}`); if (r.status === 'done') { runId = last; showResults(r) } } catch {} }
+})();
+</script>
+</body>
+</html>
