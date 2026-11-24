@@ -10,6 +10,7 @@ needs one extra request per posting.
 """
 import re
 import threading
+import urllib.error
 from urllib.parse import quote, urlencode, urlparse
 
 from .http import NotFound, RateLimited
@@ -188,61 +189,142 @@ def parse_workday_url(url):
 # Workday rate-limits aggressively, so all Workday companies are crawled one at a time
 WORKDAY_LOCK = threading.Lock()
 
+_INDIA_PLACES = re.compile(r"\b(india|bengaluru|bangalore|hyderabad|pune|chennai|gurgaon|gurugram|noida|mumbai|"
+                           r"delhi|kolkata|ahmedabad|kochi|trivandrum|thiruvananthapuram|coimbatore|mysore|mysuru|"
+                           r"jaipur|chandigarh|indore)\b", re.I)
 
-def workday(client, url, keep, searches=("software engineer", "java"), max_per_search=200):
+
+def workday_cluster(host):
+    """'nvidia.wd5.myworkdayjobs.com' -> 'wd5.myworkdayjobs.com' (rate limits are tracked per Workday server)"""
+    return host.split(".", 1)[1] if host.count(".") >= 2 else host
+
+
+def _facet_values(facets):
+    """(facetParameter, value) for every leaf value, walking nested facet groups."""
+    for f in facets or []:
+        param = f.get("facetParameter")
+        for v in f.get("values") or []:
+            if v.get("values"):
+                yield from _facet_values([v])
+            else:
+                yield param, v
+
+
+def country_facets(facets, country="India"):
+    """Workday's own location filter for one country, from a search response's facets, e.g.
+    {"locationCountry": ["c4f78be1..."]}. Falls back to the India city/office values of a location facet.
+    Returns {} if the site has no usable location filter."""
+    by_country, by_place = {}, {}
+    for param, v in _facet_values(facets):
+        desc, ident = str(v.get("descriptor") or "").strip(), v.get("id")
+        if not param or not ident:
+            continue
+        if re.search("country", param, re.I) and desc.lower() == country.lower():
+            by_country.setdefault(param, []).append(ident)
+        elif country.lower() == "india" and re.search("location", param, re.I) and _INDIA_PLACES.search(desc):
+            by_place.setdefault(param, []).append(ident)
+    if by_country:
+        param = next(iter(by_country))
+        return {param: by_country[param]}
+    if by_place:
+        param = max(by_place, key=lambda k: len(by_place[k]))
+        return {param: by_place[param]}
+    return {}
+
+
+def workday(client, url, keep, searches=("software engineer", "java"), max_per_search=200, country="India"):
     host, tenant, site = parse_workday_url(url)
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
+    cluster = workday_cluster(host)
     headers = None
     seen, out = set(), Found()
+
+    def post(q, offset, applied):
+        return client.post_json(f"{api}/jobs", {"appliedFacets": applied, "limit": 20, "offset": offset,
+                                                "searchText": q}, headers=headers, retries=3)
+
+    def first_page(q):
+        try:
+            return post(q, 0, {})
+        except urllib.error.HTTPError as ex:
+            if ex.code not in (400, 422):
+                raise
+        # Some Workday sites want the session cookies their careers page sets before searching
+        try:
+            client.get_text(f"https://{host}/{site}", max_bytes=500_000, retries=1)
+        except Exception:
+            pass
+        try:
+            return post(q, 0, {})
+        except urllib.error.HTTPError as ex:
+            if ex.code not in (400, 422):
+                raise
+            try:
+                detail = ex.read(300).decode("utf-8", "replace").strip()
+            except Exception:
+                detail = ""
+            raise ValueError(f"Workday answered HTTP {ex.code} for {host}/{site}"
+                             + (f" ({detail[:150]})" if detail else "")
+                             + ". The career-site name may have changed: open the company's careers page, "
+                               "click any job and paste that link.") from None
+
     with WORKDAY_LOCK:
-        if "myworkdayjobs.com" in client.blocked:
-            raise RateLimited("skipped: Workday already rate-limited this server in this crawl")
-        for q in searches:
-            offset, total = 0, None
-            while True:
-                try:
-                    page = client.post_json(f"{api}/jobs", {"appliedFacets": {}, "limit": 20, "offset": offset,
-                                                            "searchText": q}, headers=headers, retries=3)
-                except RateLimited:
-                    client.blocked.add("myworkdayjobs.com")   # same server IP: other Workday sites will block too
-                    if out:
-                        return out
-                    raise
-                except Exception:
-                    if out:          # keep what we already have instead of losing the whole company
-                        return out
-                    raise
-                posts = page.get("jobPostings", [])
-                if total is None:                 # Workday only reports total on the first page
-                    total = page.get("total", 0)
-                out.scanned += len(posts)
-                for p in posts:
-                    path = p.get("externalPath", "")
-                    if not path or path in seen:
-                        continue
-                    seen.add(path)
-                    loc = p.get("locationsText", "")
-                    multi = bool(_WD_MULTI.match(loc))
-                    if not keep(p.get("title", ""), None if multi else loc):
-                        continue
-                    job = Job(source="workday", company=tenant, job_id=path.rsplit("_", 1)[-1] or path,
-                              title=p.get("title", ""), location=loc,
-                              url=f"https://{host}/{site}{path}", posted=p.get("postedOn", ""))
-                    try:
-                        info = client.get_json(f"{api}{path}", headers=headers, retries=2).get("jobPostingInfo", {})
-                        job.description = html_to_text(info.get("jobDescription", ""))
-                        locs = [info.get("location", "")] + list(info.get("additionalLocations") or [])
-                        if multi or not job.location:
-                            job.location = " / ".join(l for l in locs if l)
-                        job.url = info.get("externalUrl") or job.url
-                    except Exception:
-                        pass         # keep the job even if its description couldn't be fetched
-                    if multi and job.location == loc:
-                        continue     # couldn't learn where a multi-location job is
-                    out.append(job)
-                offset += len(posts)
-                if not posts or offset >= total or offset >= max_per_search:
-                    break
+        if cluster in client.blocked:
+            raise RateLimited(f"skipped: Workday ({cluster.split('.')[0]}) already rate-limited this server in this crawl")
+        applied = None          # the site's own India filter, learned from the first response
+        try:
+            for q in searches:
+                offset, total = 0, None
+                while True:
+                    if applied is None:
+                        page = first_page(q)
+                        applied = country_facets(page.get("facets"), country) if country else {}
+                        if applied:     # re-run the search with the site's own country filter: far fewer pages
+                            page = post(q, 0, applied)
+                    else:
+                        page = post(q, offset, applied)
+                    posts = page.get("jobPostings", [])
+                    if total is None:                 # Workday only reports total on the first page
+                        total = page.get("total", 0)
+                    out.scanned += len(posts)
+                    for p in posts:
+                        path = p.get("externalPath", "")
+                        if not path or path in seen:
+                            continue
+                        seen.add(path)
+                        loc = p.get("locationsText", "")
+                        multi = bool(_WD_MULTI.match(loc))
+                        if not keep(p.get("title", ""), None if multi else loc):
+                            continue
+                        job = Job(source="workday", company=tenant, job_id=path.rsplit("_", 1)[-1] or path,
+                                  title=p.get("title", ""), location=loc,
+                                  url=f"https://{host}/{site}{path}", posted=p.get("postedOn", ""))
+                        try:
+                            info = client.get_json(f"{api}{path}", headers=headers, retries=2).get("jobPostingInfo", {})
+                            job.description = html_to_text(info.get("jobDescription", ""))
+                            locs = [info.get("location", "")] + list(info.get("additionalLocations") or [])
+                            if multi or not job.location:
+                                job.location = " / ".join(l for l in locs if l)
+                            job.url = info.get("externalUrl") or job.url
+                        except RateLimited:
+                            raise
+                        except Exception:
+                            pass         # keep the job even if its description couldn't be fetched
+                        if multi and job.location == loc:
+                            continue     # couldn't learn where a multi-location job is
+                        out.append(job)
+                    offset += len(posts)
+                    if not posts or offset >= total or offset >= max_per_search:
+                        break
+        except RateLimited:
+            client.blocked.add(cluster)   # other sites on this Workday server will block us too
+            if out:
+                return out
+            raise
+        except Exception:
+            if out:          # keep what we already have instead of losing the whole company
+                return out
+            raise
     return out
 
 
@@ -259,6 +341,10 @@ from .generic import jibe as _jibe, sitemap as _sitemap  # noqa: E402  (fallback
 FETCHERS.update(jibe=_jibe, sitemap=_sitemap)
 from .xmlfeed import xmlfeed as _xmlfeed  # noqa: E402  (careers sites with an Indeed-style XML feed)
 FETCHERS.update(xmlfeed=_xmlfeed)
+from .talentbrew import talentbrew as _talentbrew  # noqa: E402  (Radancy TalentBrew careers sites)
+FETCHERS.update(talentbrew=_talentbrew)
+from .phenom import phenom as _phenom  # noqa: E402  (Phenom careers sites)
+FETCHERS.update(phenom=_phenom)
 
 from . import more_sources as _more  # noqa: E402
 FETCHERS.update(recruitee=_more.recruitee, workable=_more.workable, breezy=_more.breezy,

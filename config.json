@@ -29,6 +29,8 @@
     "java"
   ],
   "workday_seconds_between_requests": 1.5,
+  "workday_country": "India",
+  "workday_retry_wait_seconds": 45,
   "smartrecruiters_country": "in",
   "require_stated_experience": false,
   "max_crawl_seconds": 240,

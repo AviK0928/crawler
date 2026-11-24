@@ -128,7 +128,7 @@ class Robustness(unittest.TestCase):
         c.post_json = blocked
         _, errors, _ = engine.run_crawl([{"name": "NVIDIA", "ats": "workday",
                                           "id": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"}],
-                                        CFG, log=lambda m: None, client=c)
+                                        {**CFG, "workday_retry_wait_seconds": 0}, log=lambda m: None, client=c)
         self.assertIn("rate-limited", errors[0][1])
 
     def test_smartrecruiters_country_filter(self):

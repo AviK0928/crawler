@@ -3,7 +3,7 @@ company name) into a source entry the crawler understands."""
 import re
 from urllib.parse import urlparse
 
-from . import generic, more_sources, sources, xmlfeed
+from . import generic, more_sources, phenom, sources, talentbrew, xmlfeed
 from .http import NotFound, assert_public_url
 
 # job-board URL patterns, both as pasted and as embedded in a company's own careers page
@@ -101,7 +101,7 @@ def resolve(text, client):
                 return {"name": _pretty(ident), "ats": ats, "id": ident, "jobs": n}
             except Exception:
                 continue
-        # no known job board: try Eightfold, an XML job feed, the Jibe feed, then the sitemap + Google-for-Jobs data
+        # no known job board: try Eightfold, an XML job feed, Phenom, TalentBrew, the Jibe feed, then the sitemap + Google-for-Jobs data
         _safe_public_url(url)
         ef = more_sources.probe_eightfold(client, url, html)
         if ef:
@@ -112,6 +112,16 @@ def resolve(text, client):
             feed_url, n = feed
             host = [p for p in urlparse(feed_url).netloc.split(".") if p not in ("www", "jobs", "careers", "career", "com", "in", "co", "io", "org", "net")]
             return {"name": (host[0] if host else feed_url).title(), "ats": "xmlfeed", "id": feed_url, "jobs": n}
+        ph = phenom.probe(client, url, html)
+        if ph:
+            base, n = ph
+            host = [p for p in urlparse(base).netloc.split(".") if p not in ("www", "jobs", "careers", "career", "com", "in", "co", "io", "org", "net")]
+            return {"name": (host[0] if host else base).title(), "ats": "phenom", "id": base, "jobs": n}
+        tb = talentbrew.probe(client, url)
+        if tb:
+            origin, n = tb
+            host = [p for p in urlparse(origin).netloc.split(".") if p not in ("www", "jobs", "careers", "career", "com", "in", "co", "io", "org", "net")]
+            return {"name": (host[0] if host else origin).title(), "ats": "talentbrew", "id": origin, "jobs": n}
         found = generic.probe(client, url)
         if found:
             ats, ident, n = found

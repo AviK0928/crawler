@@ -98,7 +98,7 @@ def _settings(user):
 
 def _valid_entry(e):
     return (isinstance(e, dict) and e.get("ats") in ("greenhouse", "lever", "ashby", "smartrecruiters", "workday", "amazon",
-                                                    "jibe", "sitemap", "xmlfeed", "recruitee", "workable", "breezy",
+                                                    "jibe", "sitemap", "xmlfeed", "talentbrew", "phenom", "recruitee", "workable", "breezy",
                                                     "oracle", "eightfold", "workable_search")
             and (isinstance(e.get("id"), str) and 0 < len(e["id"]) < 300 or isinstance(e.get("id"), dict)))
 

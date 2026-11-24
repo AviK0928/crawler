@@ -188,7 +188,7 @@ class TimeLimitsAndFailFast(unittest.TestCase):
                    for n in ("walmart", "nvidia", "paypal", "adobe")]
         import time as _t
         t0 = _t.monotonic()
-        _, errors, _ = engine.run_crawl(entries, CFG, log=lambda m: None, client=C())
+        _, errors, _ = engine.run_crawl(entries, {**CFG, "workday_retry_wait_seconds": 0}, log=lambda m: None, client=C())
         self.assertLess(_t.monotonic() - t0, 5)
         self.assertEqual(len(calls), 1)                         # only the first site was even tried
         self.assertEqual(sum("skipped" in m for _, m in errors), 3)

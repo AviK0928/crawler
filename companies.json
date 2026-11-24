@@ -28,5 +28,7 @@
   {"name": "Zeta", "ats": "lever", "id": "zeta"},
   {"name": "ServiceNow", "ats": "smartrecruiters", "id": "ServiceNow"},
   {"name": "Freshworks", "ats": "smartrecruiters", "id": "Freshworks"},
-  {"name": "Criteo", "ats": "xmlfeed", "id": "https://careers.criteo.com/en/jobs/xml/?rss=true"}
+  {"name": "Criteo", "ats": "xmlfeed", "id": "https://careers.criteo.com/en/jobs/xml/?rss=true"},
+  {"name": "UnitedHealth Group / Optum", "ats": "talentbrew", "id": "https://careers.unitedhealthgroup.com"},
+  {"name": "United Airlines", "ats": "phenom", "id": "https://careers.united.com/us/en"}
 ]

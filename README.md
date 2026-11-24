@@ -65,11 +65,15 @@ so small companies show up without you naming them.
 - a single job's link (it works out the board from it)
 - or just a name: `Postman`
 - **any other careers site**, e.g. `https://jobs.keysight.com`. If the site isn't on a supported job board,
-  the crawler tries two fallbacks:
+  the crawler tries these fallbacks:
   1. **XML job feed** (the Indeed format, e.g. `careers.criteo.com/en/jobs/xml/?rss=true`), used by many
      custom careers sites such as Criteo. One request returns every open job.
-  1. **Jibe job feed** (`<site>/api/jobs`), used by Jibe/iCIMS sites such as Keysight.
-  2. **Sitemap + Google for Jobs data.** Most careers sites (iCIMS, SuccessFactors, Phenom, Eightfold, custom)
+  2. **Radancy TalentBrew sites** (e.g. `https://careers.unitedhealthgroup.com`): job links carry the city
+     and title, so the crawler picks India jobs with a relevant title straight from the sitemap and opens only those.
+  3. **Phenom sites** (e.g. `https://careers.united.com/us/en/search-results`): the crawler asks the site's own
+     job search for India jobs, then opens only the relevant job pages. Falls back to the site's job sitemap.
+  4. **Jibe job feed** (`<site>/api/jobs`), used by Jibe/iCIMS sites such as Keysight.
+  5. **Sitemap + Google for Jobs data.** Most careers sites (iCIMS, SuccessFactors, Phenom, Eightfold, custom)
      list job pages in their sitemap and embed schema.org `JobPosting` data so Google can show them.
      The crawler reads the sitemap and opens only pages whose URL looks like a relevant title (up to 300 per site).
      This is slower than a job-board feed.
@@ -99,9 +103,17 @@ found so far, and any unfinished sources are listed as "timed out".
 and accounts get restricted for it. Use LinkedIn's own job alerts instead (Entry level, India, "Java").
 
 **Workday and "429 Too Many Requests":** Workday limits how fast one server can ask for jobs.
-The crawler visits Workday companies one at a time and waits between requests. As soon as one Workday
-company blocks it, it skips the rest for that crawl (they're all blocking the same server). Workday may still block cloud servers at busy times. If it does,
-run the crawl again later, or use the GitHub Actions daily crawl, which runs from different IPs.
+To stay under the limit, the crawler:
+- visits Workday companies one at a time and waits between requests;
+- uses each site's own country filter (`workday_country` in `config.json`, default India), so it only
+  pages through India jobs instead of the whole world;
+- when one Workday server (`wd1`, `wd5`, `wd12`…) blocks it, skips the other companies on *that* server
+  but keeps trying companies on other servers;
+- waits `workday_retry_wait_seconds` (default 45) at the end of the crawl and retries the blocked companies once.
+
+Render's free servers share their IP addresses with many other apps, so Workday may still block them at
+busy times. If it keeps happening, run the crawl again later, or use the GitHub Actions daily crawl or
+Colab, which run from different IPs.
 
 **Not supported:** sites that publish neither a feed nor job data in their sitemap, sites that block
 automated visitors, and LinkedIn/Naukri, which ban automated scraping.
