@@ -11,7 +11,7 @@ needs one extra request per posting.
 import re
 import threading
 import urllib.error
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from .http import NotFound, RateLimited
 from .models import Found, Job, html_to_text
@@ -186,6 +186,13 @@ def parse_workday_url(url):
     return host, tenant, parts[0]
 
 
+def workday_url_facets(url):
+    """Filters in a pasted Workday link, e.g. ?jobFamilyGroup=abc&jobFamily=def -> {"jobFamilyGroup": ["abc"], ...}.
+    Workday uses the same names in the search request's appliedFacets."""
+    q = parse_qs(urlparse(url if "://" in url else "https://" + url).query)
+    return {k: v for k, v in q.items() if re.fullmatch(r"[A-Za-z_]\w{0,60}", k) and k not in ("q", "source", "locale")}
+
+
 # Workday rate-limits aggressively, so all Workday companies are crawled one at a time
 WORKDAY_LOCK = threading.Lock()
 
@@ -234,6 +241,7 @@ def country_facets(facets, country="India"):
 
 def workday(client, url, keep, searches=("software engineer", "java"), max_per_search=200, country="India"):
     host, tenant, site = parse_workday_url(url)
+    url_facets = workday_url_facets(url)    # e.g. only the tech job family, from the link the user pasted
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
     cluster = workday_cluster(host)
     # Workday reads Accept-Language as the site locale; some sites (Walmart) answer 422 to "en-US,en;q=0.9"
@@ -246,7 +254,7 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
 
     def first_page(q):
         try:
-            return post(q, 0, {})
+            return post(q, 0, url_facets)
         except urllib.error.HTTPError as ex:
             if ex.code not in (400, 422):
                 raise
@@ -256,7 +264,7 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
         except Exception:
             pass
         try:
-            return post(q, 0, {})
+            return post(q, 0, url_facets)
         except urllib.error.HTTPError as ex:
             if ex.code not in (400, 422):
                 raise
@@ -266,8 +274,9 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
                 detail = ""
             raise ValueError(f"Workday answered HTTP {ex.code} for {host}/{site}"
                              + (f" ({detail[:150]})" if detail else "")
-                             + ". Open the company's careers page and check the link still works; if it does, "
-                               "Workday is refusing this server's requests.") from None
+                             + ". Usually the company's site moved to another Workday server (the wdN part of "
+                               "the address) or was renamed: open their careers page, click any job and paste "
+                               "that link.") from None
 
     with WORKDAY_LOCK:
         if cluster in client.blocked:
@@ -279,8 +288,9 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
                 while True:
                     if applied is None:
                         page = first_page(q)
-                        applied = country_facets(page.get("facets"), country) if country else {}
-                        if applied:     # re-run the search with the site's own country filter: far fewer pages
+                        found = country_facets(page.get("facets"), country) if country else {}
+                        applied = {**url_facets, **found}
+                        if found:       # re-run the search with the site's own country filter: far fewer pages
                             page = post(q, 0, applied)
                     else:
                         page = post(q, offset, applied)

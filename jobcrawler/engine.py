@@ -2,7 +2,7 @@
 
 A source entry looks like one of:
   {"name": "Stripe",  "ats": "greenhouse",      "id": "stripe"}
-  {"name": "Walmart", "ats": "workday",         "id": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"}
+  {"name": "Walmart", "ats": "workday",         "id": "https://walmart.wd504.myworkdayjobs.com/WalmartExternal"}
   {"name": "Amazon",  "ats": "amazon",          "id": {"base_query": "java", "country": "IND"}}
 """
 import json

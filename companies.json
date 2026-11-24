@@ -3,7 +3,7 @@
   {"name": "Amazon (Java)", "ats": "amazon", "id": {"base_query": "java", "country": "IND"}},
   {"name": "Workable search: java", "ats": "workable_search", "id": {"query": "java", "location": "India"}},
   {"name": "Workable search: software engineer", "ats": "workable_search", "id": {"query": "software engineer", "location": "India"}},
-  {"name": "Walmart Global Tech", "ats": "workday", "id": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"},
+  {"name": "Walmart Global Tech", "ats": "workday", "id": "https://walmart.wd504.myworkdayjobs.com/WalmartExternal"},
   {"name": "Salesforce", "ats": "workday", "id": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site"},
   {"name": "PayPal", "ats": "workday", "id": "https://paypal.wd1.myworkdayjobs.com/jobs"},
   {"name": "Mastercard", "ats": "workday", "id": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"},

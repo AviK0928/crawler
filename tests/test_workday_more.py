@@ -71,6 +71,36 @@ class CountryFilter(unittest.TestCase):
         self.assertTrue(all(p[1]["appliedFacets"] == {} for p in c.posts))
 
 
+class LinkFilters(unittest.TestCase):
+    URL = ("https://walmart.wd504.myworkdayjobs.com/WalmartExternal?jobFamilyGroup=e83ebdbd2a0a01e7e1477a8948e904c6"
+           "&jobFamily=e83ebdbd2a0a01e6af60e95a47e972c4")
+
+    def test_parse(self):
+        self.assertEqual(sources.workday_url_facets(self.URL),
+                         {"jobFamilyGroup": ["e83ebdbd2a0a01e7e1477a8948e904c6"],
+                          "jobFamily": ["e83ebdbd2a0a01e6af60e95a47e972c4"]})
+        self.assertEqual(sources.parse_workday_url(self.URL),
+                         ("walmart.wd504.myworkdayjobs.com", "walmart", "WalmartExternal"))
+        self.assertEqual(sources.workday_url_facets("https://x.wd5.myworkdayjobs.com/Ext"), {})
+
+    def test_filters_combined_with_country(self):
+        class F(C):
+            def post_json(self, url, data, **kw):
+                self.posts.append((url, data))
+                return INDIA if "locationCountry" in data["appliedFacets"] else ALL
+        c = F()
+        sources.workday(c, self.URL, KEEP, searches=("software",))
+        self.assertEqual(c.posts[0][1]["appliedFacets"]["jobFamily"], ["e83ebdbd2a0a01e6af60e95a47e972c4"])
+        self.assertEqual(c.posts[1][1]["appliedFacets"],
+                         {"jobFamilyGroup": ["e83ebdbd2a0a01e7e1477a8948e904c6"],
+                          "jobFamily": ["e83ebdbd2a0a01e6af60e95a47e972c4"], "locationCountry": ["in-id"]})
+        self.assertTrue(c.posts[0][0].startswith("https://walmart.wd504.myworkdayjobs.com/wday/cxs/walmart/WalmartExternal/"))
+
+    def test_pasted_link_keeps_filters(self):
+        from jobcrawler import resolve
+        self.assertEqual(resolve.find_boards(self.URL), [("workday", self.URL)])
+
+
 class Http422(unittest.TestCase):
     def test_sends_plain_locale(self):
         c = C()

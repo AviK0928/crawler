@@ -57,7 +57,8 @@ so small companies show up without you naming them.
 
 **In the web page:** paste any of these into "Add a company":
 - a job-board link: `https://jobs.lever.co/razorpay`, `https://boards.greenhouse.io/stripe`, `https://jobs.ashbyhq.com/zepto`
-- a Workday link: `https://walmart.wd5.myworkdayjobs.com/en-US/WalmartExternal`
+- a Workday link: `https://walmart.wd504.myworkdayjobs.com/en-US/WalmartExternal`. Filters you picked on the
+  Workday page (e.g. `?jobFamilyGroup=…&jobFamily=…`) are kept, so only those jobs are searched.
 - an Oracle link: `https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001`
 - an Eightfold site, e.g. `https://<company>.eightfold.ai/careers` (the `domain` setting is detected from the page)
 - Workable / Recruitee / Breezy links: `https://apply.workable.com/<company>`, `https://<company>.recruitee.com`, `https://<company>.breezy.hr`
@@ -85,7 +86,7 @@ the daily GitHub crawl), click **Copy my added sources (JSON)** and paste the li
 **`companies.json` format:**
 ```json
 {"name": "Stripe",  "ats": "greenhouse", "id": "stripe"},
-{"name": "Walmart", "ats": "workday",    "id": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"},
+{"name": "Walmart", "ats": "workday",    "id": "https://walmart.wd504.myworkdayjobs.com/WalmartExternal"},
 {"name": "Amazon",  "ats": "amazon",     "id": {"base_query": "java", "country": "IND"}}
 ```
 Any company that fails appears under "sources failed" after a crawl. PhonePe and Postman use

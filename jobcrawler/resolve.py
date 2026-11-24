@@ -14,7 +14,7 @@ PATTERNS = [
     ("lever", re.compile(r"jobs(?:\.eu)?\.lever\.co/([\w.-]+)", re.I)),
     ("ashby", re.compile(r"jobs\.ashbyhq\.com/([\w.%-]+)", re.I)),
     ("smartrecruiters", re.compile(r"(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)", re.I)),
-    ("workday", re.compile(r"(https?://[\w-]+\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?[\w-]+)", re.I)),
+    ("workday", re.compile(r"(https?://[\w-]+\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?[\w-]+(?:\?[\w=&%.-]+)?)", re.I)),
     ("recruitee", re.compile(r"(?<![\w.-])([a-z0-9][\w-]*)\.recruitee\.com", re.I)),
     ("workable", re.compile(r"apply\.workable\.com/api/v1/widget/accounts/([\w-]+)", re.I)),
     ("workable", re.compile(r"apply\.workable\.com/(?!api\b|j/)([\w-]+)", re.I)),
@@ -55,7 +55,8 @@ def _count(client, ats, ident):
     if ats == "workday":
         host, tenant, site = sources.parse_workday_url(ident)
         page = client.post_json(f"https://{host}/wday/cxs/{tenant}/{site}/jobs",
-                                {"appliedFacets": {}, "limit": 1, "offset": 0, "searchText": ""})
+                                {"appliedFacets": sources.workday_url_facets(ident), "limit": 1, "offset": 0,
+                                 "searchText": ""}, headers={"Accept-Language": "en-US"})
         return page.get("total", 0)
     return len(sources.FETCHERS[ats](client, ident, nothing))
 
