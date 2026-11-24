@@ -48,21 +48,10 @@ You can also run it any time with the **Run workflow** button.
 
 ---
 
-## Small companies: Workable search + Adzuna
+## Small companies: Workable search
 
-Two sources search across **many** employers at once, so small companies show up without you
-naming them:
-
-- **Workable search** (no setup): Workable's own cross-company job search, filtered to India.
-- **Adzuna** (free key): a job aggregator with an India site.
-  1. Sign up at [developer.adzuna.com](https://developer.adzuna.com) (free, no card) and copy your App ID and App Key.
-  2. Render: service > **Environment** > add `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`.
-     GitHub daily crawl: repo **Settings > Secrets and variables > Actions** > add the same two secrets.
-     Colab: add them in the 🔑 Secrets panel.
-  3. The free plan allows about 1,000 calls a month. Each crawl uses up to 6 (2 searches × 3 pages),
-     set by `adzuna_max_pages` in `config.json`.
-
-Without a key, the Adzuna rows just show "key not set" under failed sources; untick them if you don't want them.
+**Workable search** (no setup) searches Workable's own cross-company job listings, filtered to India,
+so small companies show up without you naming them.
 
 ## Adding companies
 
@@ -77,6 +66,8 @@ Without a key, the Adzuna rows just show "key not set" under failed sources; unt
 - or just a name: `Postman`
 - **any other careers site**, e.g. `https://jobs.keysight.com`. If the site isn't on a supported job board,
   the crawler tries two fallbacks:
+  1. **XML job feed** (the Indeed format, e.g. `careers.criteo.com/en/jobs/xml/?rss=true`), used by many
+     custom careers sites such as Criteo. One request returns every open job.
   1. **Jibe job feed** (`<site>/api/jobs`), used by Jibe/iCIMS sites such as Keysight.
   2. **Sitemap + Google for Jobs data.** Most careers sites (iCIMS, SuccessFactors, Phenom, Eightfold, custom)
      list job pages in their sitemap and embed schema.org `JobPosting` data so Google can show them.

@@ -257,8 +257,10 @@ FETCHERS = {
 
 from .generic import jibe as _jibe, sitemap as _sitemap  # noqa: E402  (fallbacks for other careers sites)
 FETCHERS.update(jibe=_jibe, sitemap=_sitemap)
+from .xmlfeed import xmlfeed as _xmlfeed  # noqa: E402  (careers sites with an Indeed-style XML feed)
+FETCHERS.update(xmlfeed=_xmlfeed)
 
 from . import more_sources as _more  # noqa: E402
 FETCHERS.update(recruitee=_more.recruitee, workable=_more.workable, breezy=_more.breezy,
                 oracle=_more.oracle, eightfold=_more.eightfold,
-                workable_search=_more.workable_search, adzuna=_more.adzuna)
+                workable_search=_more.workable_search)

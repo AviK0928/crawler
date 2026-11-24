@@ -7,7 +7,6 @@ oracle     Oracle Recruiting Cloud (e.g. JPMorgan):  https://{host}/hcmRestApi/r
 eightfold  Eightfold career sites (e.g. Microsoft, Qualcomm):  https://{site}/api/apply/v2/jobs?domain=...
 """
 import re
-import urllib.error
 from datetime import datetime, timezone
 from urllib.parse import quote, urlparse
 
@@ -234,7 +233,7 @@ def probe_eightfold(client, url, html=""):
 # ------------------------------------------------------------------ aggregators (many companies per source)
 # These return jobs from many employers, so each job keeps its own company name.
 
-AGGREGATORS = {"workable_search", "adzuna"}
+AGGREGATORS = {"workable_search"}
 
 
 def workable_search(client, ident, keep, max_pages=10):
@@ -275,48 +274,4 @@ def parse_workable_search(items):
                        title=j.get("title", ""), location=loc,
                        url=j.get("url") or f"https://jobs.workable.com/view/{j.get('id', '')}",
                        description=html_to_text(desc), posted=str(j.get("created") or "")[:10]))
-    return out
-
-
-def adzuna(client, ident, keep, app_id=None, app_key=None, max_pages=3, max_days_old=30):
-    """Adzuna job aggregator, India site. Needs a free key from developer.adzuna.com.
-    ident = {"what": "java developer"}"""
-    import os
-    app_id = app_id or os.environ.get("ADZUNA_APP_ID", "")
-    app_key = app_key or os.environ.get("ADZUNA_APP_KEY", "")
-    if not app_id or not app_key:
-        raise ValueError("Adzuna key not set: add ADZUNA_APP_ID and ADZUNA_APP_KEY (free at developer.adzuna.com) "
-                         "in Render > Environment, or untick Adzuna")
-    out = Found()
-    for page in range(1, max_pages + 1):
-        try:
-            data = client.get_json(
-                f"https://api.adzuna.com/v1/api/jobs/in/search/{page}?app_id={quote(app_id)}&app_key={quote(app_key)}"
-                f"&results_per_page=50&what={quote(ident.get('what', 'java developer'))}&category=it-jobs"
-                f"&max_days_old={max_days_old}&sort_by=date&content-type=application/json")
-        except NotFound:
-            raise NotFound("Adzuna search") from None      # the URL contains the key: never show it
-        except urllib.error.HTTPError as ex:
-            raise RuntimeError(f"Adzuna returned HTTP {ex.code}" + (" (check your app_id/app_key)" if ex.code in (401, 403) else "")) from None
-        results = data.get("results") or []
-        for j in parse_adzuna(results):
-            out.scanned += 1
-            if keep(j.title, j.location or None):
-                out.append(j)
-        if len(results) < 50:
-            break
-    return out
-
-
-def parse_adzuna(results):
-    out = []
-    for r in results:
-        comp = (r.get("company") or {}).get("display_name", "")
-        loc = (r.get("location") or {}).get("display_name", "")
-        area = (r.get("location") or {}).get("area") or []
-        if area and "India" not in loc:
-            loc = ", ".join([loc] + [a for a in area if a not in loc]) if loc else ", ".join(area)
-        out.append(Job(source="adzuna", company=comp or "Unknown", job_id=str(r.get("id", "")),
-                       title=html_to_text(r.get("title", "")), location=loc, url=r.get("redirect_url", ""),
-                       description=html_to_text(r.get("description", "")), posted=str(r.get("created") or "")[:10]))
     return out

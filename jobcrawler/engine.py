@@ -42,9 +42,6 @@ def run_crawl(entries, cfg, log=print, client=None):
         if e["ats"] == "eightfold":
             return fn(client, e["id"], keep, location=cfg.get("eightfold_location", "India"),
                       searches=tuple(cfg.get("workday_searches", ["software engineer"])))
-        if e["ats"] == "adzuna":
-            return fn(client, e["id"], keep, max_pages=cfg.get("adzuna_max_pages", 3),
-                      max_days_old=cfg.get("adzuna_max_days_old", 30))
         if e["ats"] == "smartrecruiters":
             return fn(client, e["id"], keep, country=cfg.get("smartrecruiters_country", "in"))
         return fn(client, e["id"], keep)

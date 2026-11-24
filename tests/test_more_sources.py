@@ -187,14 +187,6 @@ class Aggregators(Base):
          "location": {"city": "Noida", "subregion": "UP", "countryName": "India"}}]}
     WS2 = {"jobs": [{"id": "u-3", "title": "Software Engineer", "company": {"title": "SmallCo"},
                      "location": {"city": "Kochi", "countryName": "India"}, "description": "Java, 1 year of experience"}]}
-    AZ = {"count": 2, "results": [
-        {"id": "4001", "title": "<strong>Java</strong> Developer - Fresher", "company": {"display_name": "Acme Softech"},
-         "location": {"display_name": "Bengaluru, Karnataka", "area": ["India", "Karnataka", "Bengaluru"]},
-         "redirect_url": "https://www.adzuna.in/land/ad/4001", "created": "2026-11-15T05:00:00Z",
-         "description": "Freshers welcome. 0-1 years of experience in Java and Spring."},
-        {"id": "4002", "title": "Lead Java Engineer", "company": {"display_name": "Big Co"},
-         "location": {"display_name": "Chennai", "area": ["India"]}}]}
-
     def setUp(self):
         super().setUp()
         outer = self
@@ -203,10 +195,6 @@ class Aggregators(Base):
             self.c.urls.append(url)
             if url.startswith("https://jobs.workable.com/api/v1/jobs"):
                 return outer.WS2 if "pageToken=p2" in url else outer.WS
-            if url.startswith("https://api.adzuna.com/v1/api/jobs/in/search/"):
-                if "app_key=BAD" in url:
-                    raise NotFound(url)
-                return outer.AZ
             return orig(url, **kw)
         self.c.get_json = gj
 
@@ -217,27 +205,9 @@ class Aggregators(Base):
                          [("Tiny Startup Pvt Ltd", "Junior Java Developer"), ("SmallCo", "Software Engineer")])
         self.assertEqual(jobs[1].location, "Kochi, India")
 
-    def test_adzuna(self):
-        jobs = ms.adzuna(self.c, {"what": "java developer"}, KEEP, app_id="ID", app_key="KEY", max_pages=1)
-        [j] = jobs
-        self.assertEqual((j.company, j.title, j.location), ("Acme Softech", "Java Developer - Fresher",
-                                                             "Bengaluru, Karnataka, India"))
-        self.assertTrue(scoring.score(j, STRICT))
-
-    def test_adzuna_needs_key_and_never_leaks_it(self):
-        with mock.patch.dict("os.environ", {}, clear=True):
-            with self.assertRaises(ValueError) as cm:
-                ms.adzuna(self.c, {"what": "java"}, KEEP)
-            self.assertIn("ADZUNA_APP_ID", str(cm.exception))
-        with self.assertRaises(NotFound) as cm:
-            ms.adzuna(self.c, {"what": "java"}, KEEP, app_id="ID", app_key="BAD")
-        self.assertNotIn("BAD", str(cm.exception))
-
     def test_engine_keeps_each_jobs_company_for_aggregators(self):
-        with mock.patch.dict("os.environ", {"ADZUNA_APP_ID": "ID", "ADZUNA_APP_KEY": "KEY"}):
-            matches, errors, _ = engine.run_crawl(
-                [{"name": "Workable search: java", "ats": "workable_search", "id": {"query": "java", "location": "India"}},
-                 {"name": "Adzuna: java developer", "ats": "adzuna", "id": {"what": "java developer"}}],
-                {**STRICT, "adzuna_max_pages": 1}, log=lambda m: None, client=self.c)
+        matches, errors, _ = engine.run_crawl(
+            [{"name": "Workable search: java", "ats": "workable_search", "id": {"query": "java", "location": "India"}}],
+            STRICT, log=lambda m: None, client=self.c)
         self.assertEqual(errors, [])
-        self.assertEqual(sorted({j.company for j in matches}), ["Acme Softech", "SmallCo", "Tiny Startup Pvt Ltd"])
+        self.assertEqual(sorted({j.company for j in matches}), ["SmallCo", "Tiny Startup Pvt Ltd"])
