@@ -9,6 +9,7 @@
   {"name": "Mastercard", "ats": "workday", "id": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"},
   {"name": "NVIDIA", "ats": "workday", "id": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"},
   {"name": "Adobe", "ats": "workday", "id": "https://adobe.wd5.myworkdayjobs.com/external_experienced"},
+  {"name": "Visa", "ats": "workday", "id": "https://visa.wd5.myworkdayjobs.com/Visa"},
   {"name": "Keysight", "ats": "jibe", "id": "https://jobs.keysight.com"},
   {"name": "JPMorgan Chase", "ats": "oracle", "id": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001"},
   {"name": "Stripe", "ats": "greenhouse", "id": "stripe"},
