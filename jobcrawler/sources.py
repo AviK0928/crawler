@@ -236,7 +236,8 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
     host, tenant, site = parse_workday_url(url)
     api = f"https://{host}/wday/cxs/{tenant}/{site}"
     cluster = workday_cluster(host)
-    headers = None
+    # Workday reads Accept-Language as the site locale; some sites (Walmart) answer 422 to "en-US,en;q=0.9"
+    headers = {"Accept-Language": "en-US"}
     seen, out = set(), Found()
 
     def post(q, offset, applied):
@@ -251,7 +252,7 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
                 raise
         # Some Workday sites want the session cookies their careers page sets before searching
         try:
-            client.get_text(f"https://{host}/{site}", max_bytes=500_000, retries=1)
+            client.get_text(f"https://{host}/{site}", max_bytes=500_000, retries=1, headers=headers)
         except Exception:
             pass
         try:
@@ -265,8 +266,8 @@ def workday(client, url, keep, searches=("software engineer", "java"), max_per_s
                 detail = ""
             raise ValueError(f"Workday answered HTTP {ex.code} for {host}/{site}"
                              + (f" ({detail[:150]})" if detail else "")
-                             + ". The career-site name may have changed: open the company's careers page, "
-                               "click any job and paste that link.") from None
+                             + ". Open the company's careers page and check the link still works; if it does, "
+                               "Workday is refusing this server's requests.") from None
 
     with WORKDAY_LOCK:
         if cluster in client.blocked:

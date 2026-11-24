@@ -72,6 +72,17 @@ class CountryFilter(unittest.TestCase):
 
 
 class Http422(unittest.TestCase):
+    def test_sends_plain_locale(self):
+        c = C()
+        seen = []
+        orig = c.post_json
+        def post(url, data, headers=None, **kw):
+            seen.append(headers)
+            return orig(url, data)
+        c.post_json = post
+        sources.workday(c, "https://walmart.wd5.myworkdayjobs.com/WalmartExternal", KEEP, searches=("software",))
+        self.assertTrue(seen and all(h == {"Accept-Language": "en-US"} for h in seen))
+
     def test_retries_after_visiting_careers_page(self):
         c = C()
         tries = []
