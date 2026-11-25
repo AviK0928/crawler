@@ -3,6 +3,9 @@
   {"name": "Amazon (Java)", "ats": "amazon", "id": {"base_query": "java", "country": "IND"}},
   {"name": "Workable search: java", "ats": "workable_search", "id": {"query": "java", "location": "India"}},
   {"name": "Workable search: software engineer", "ats": "workable_search", "id": {"query": "software engineer", "location": "India"}},
+  {"name": "Himalayas (remote, open to India): java", "ats": "himalayas", "id": {"query": "java", "country": "IN"}},
+  {"name": "Himalayas (remote, open to India): software engineer", "ats": "himalayas", "id": {"query": "software engineer", "country": "IN"}},
+  {"name": "HN Who is hiring (this month)", "ats": "hn_hiring", "id": {"thread": "latest"}},
   {"name": "Walmart Global Tech", "ats": "workday", "id": "https://walmart.wd504.myworkdayjobs.com/WalmartExternal"},
   {"name": "Salesforce", "ats": "workday", "id": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site"},
   {"name": "PayPal", "ats": "workday", "id": "https://paypal.wd1.myworkdayjobs.com/jobs"},
@@ -31,5 +34,16 @@
   {"name": "Freshworks", "ats": "smartrecruiters", "id": "Freshworks"},
   {"name": "Criteo", "ats": "xmlfeed", "id": "https://careers.criteo.com/en/jobs/xml/?rss=true"},
   {"name": "UnitedHealth Group / Optum", "ats": "talentbrew", "id": "https://careers.unitedhealthgroup.com"},
-  {"name": "United Airlines", "ats": "phenom", "id": "https://careers.united.com/us/en"}
+  {"name": "United Airlines", "ats": "phenom", "id": "https://careers.united.com/us/en"},
+  {"name": "Harness", "ats": "greenhouse", "id": "harnessinc"},
+  {"name": "Samsara", "ats": "greenhouse", "id": "samsara"},
+  {"name": "Acceldata", "ats": "lever", "id": "acceldata"},
+  {"name": "Cambium Networks", "ats": "lever", "id": "cambiumnetworks"},
+  {"name": "Zuma", "ats": "lever", "id": "getzuma"},
+  {"name": "Atlan", "ats": "ashby", "id": "atlan"},
+  {"name": "Cartesia", "ats": "ashby", "id": "cartesia"},
+  {"name": "Keka", "ats": "keka", "id": "hr"},
+  {"name": "Kickdrum", "ats": "keka", "id": "kickdrum"},
+  {"name": "Softmason Technologies", "ats": "keka", "id": "softmason"},
+  {"name": "Loop Health", "ats": "keka", "id": "loop"}
 ]

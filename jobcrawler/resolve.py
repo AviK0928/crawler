@@ -14,6 +14,7 @@ PATTERNS = [
     ("lever", re.compile(r"jobs(?:\.eu)?\.lever\.co/([\w.-]+)", re.I)),
     ("ashby", re.compile(r"jobs\.ashbyhq\.com/([\w.%-]+)", re.I)),
     ("smartrecruiters", re.compile(r"(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)", re.I)),
+    ("keka", re.compile(r"(?<![\w.-])([\w-]+)\.keka\.com/careers", re.I)),
     ("workday", re.compile(r"(https?://[\w-]+\.wd\d+\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?[\w-]+(?:\?[\w=&%.-]+)?)", re.I)),
     ("recruitee", re.compile(r"(?<![\w.-])([a-z0-9][\w-]*)\.recruitee\.com", re.I)),
     ("workable", re.compile(r"apply\.workable\.com/api/v1/widget/accounts/([\w-]+)", re.I)),
@@ -22,7 +23,7 @@ PATTERNS = [
     ("oracle", re.compile(r"(https?://[\w.-]+\.oraclecloud\.com/hcmUI/CandidateExperience/[\w-]+/sites/[\w-]+)", re.I)),
 ]
 NOT_SLUGS = {"www", "app", "api", "careers", "jobs"}
-IGNORE_SLUGS = {"embed", "v1", "jobs", "api", "js", "en", "en-us"}
+IGNORE_SLUGS = {"embed", "v1", "jobs", "api", "js", "en", "en-us", "www", "cdn"}
 
 
 def _safe_public_url(url):
@@ -52,6 +53,11 @@ def _count(client, ats, ident):
         return page["totalFound"]
     if ats == "oracle":
         return more_sources.oracle_count(client, ident)
+    if ats == "keka":
+        found = sources.FETCHERS["keka"](client, ident, nothing)
+        if not found.scanned:
+            raise NotFound(ident)
+        return found.scanned
     if ats == "workday":
         host, tenant, site = sources.parse_workday_url(ident)
         page = client.post_json(f"https://{host}/wday/cxs/{tenant}/{site}/jobs",

@@ -48,6 +48,25 @@ You can also run it any time with the **Run workflow** button.
 
 ---
 
+## Keka careers sites
+
+Many Indian startups and mid-size companies use Keka Hire. Their careers page is `https://<company>.keka.com/careers`.
+Add one with `{"name": "Acme", "ats": "keka", "id": "<company>"}` or paste the careers link into the app.
+The crawler reads the same public job list the careers page loads (`/careers/api/jobs/default/active`; Keka's
+robots.txt allows `/careers/`). Keka lists required experience (e.g. `2-4`), so the 0-1 year filter works well.
+
+## Remote jobs open to India: Himalayas
+
+`{"ats": "himalayas", "id": {"query": "java", "country": "IN"}}` searches Himalayas' free public remote-jobs API
+for jobs open to India (India-only or worldwide). Jobs show as "<company> (via Himalayas)" and link to Himalayas'
+own apply page, as its terms require. Himalayas' terms also say not to republish its jobs on other sites.
+
+## Hacker News "Who is hiring?"
+
+`{"ats": "hn_hiring", "id": {"thread": "latest"}}` reads this month's thread through HN's official search API.
+Posts are free text, so the title and location come from each post's first line
+(e.g. `Acme | Backend Engineer | Bengaluru`): expect a few misses.
+
 ## Small companies: Workable search
 
 **Workable search** (no setup) searches Workable's own cross-company job listings, filtered to India,

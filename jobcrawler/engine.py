@@ -11,13 +11,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeout
 
 from . import scoring, sources
-from .more_sources import AGGREGATORS
+from .boards import AGGREGATORS as _BOARD_AGGREGATORS
+from .more_sources import AGGREGATORS as _MORE_AGGREGATORS
+
+AGGREGATORS = _MORE_AGGREGATORS | _BOARD_AGGREGATORS
 from .http import CrawlTimeout, HttpClient, NotFound, RateLimited
 
 
 def entry_label(e):
     ident = e["id"] if isinstance(e["id"], str) else (e["id"].get("base_query") or e["id"].get("domain")
-                                                      or e["id"].get("query") or e["id"].get("what") or "")
+                                                      or e["id"].get("query") or e["id"].get("what")
+                                                      or e["id"].get("thread") or "")
     return f'{e.get("name") or ident} ({e["ats"]})'
 
 

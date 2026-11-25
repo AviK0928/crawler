@@ -356,6 +356,8 @@ from .talentbrew import talentbrew as _talentbrew  # noqa: E402  (Radancy Talent
 FETCHERS.update(talentbrew=_talentbrew)
 from .phenom import phenom as _phenom  # noqa: E402  (Phenom careers sites)
 FETCHERS.update(phenom=_phenom)
+from . import boards as _boards  # noqa: E402  (Keka, Himalayas, HN Who is hiring)
+FETCHERS.update(keka=_boards.keka, himalayas=_boards.himalayas, hn_hiring=_boards.hn_hiring)
 
 from . import more_sources as _more  # noqa: E402
 FETCHERS.update(recruitee=_more.recruitee, workable=_more.workable, breezy=_more.breezy,
