@@ -61,6 +61,11 @@ robots.txt allows `/careers/`). Keka lists required experience (e.g. `2-4`), so 
 for jobs open to India (India-only or worldwide). Jobs show as "<company> (via Himalayas)" and link to Himalayas'
 own apply page, as its terms require. Himalayas' terms also say not to republish its jobs on other sites.
 
+Without a key, everyone on the internet shares one small Himalayas allowance, so you may see "rate-limited".
+A free key fixes that: sign up at himalayas.app, verify your email, create a key on the API keys page, and add it
+as `HIMALAYAS_API_KEY` in Render (Environment) and/or GitHub (Settings > Secrets and variables > Actions).
+Don't paste the key into chats or commit it to the repo.
+
 ## Hacker News "Who is hiring?"
 
 `{"ats": "hn_hiring", "id": {"thread": "latest"}}` reads this month's thread through HN's official search API.

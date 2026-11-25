@@ -14,3 +14,5 @@ services:
         value: 3.12.7
       - key: APP_PASSWORD      # optional: set a value in the Render dashboard to password-protect the site
         sync: false
+      - key: HIMALAYAS_API_KEY # optional: free key from himalayas.app (avoids its shared rate limit)
+        sync: false

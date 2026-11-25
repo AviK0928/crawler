@@ -32,7 +32,8 @@ def entry_key(e):
 def run_crawl(entries, cfg, log=print, client=None):
     """Returns (matches sorted by score, errors [(label, msg)], scanned_count)."""
     client = client or HttpClient(min_interval=cfg.get("min_seconds_between_requests_per_host", 0.5),
-                                  host_intervals={"myworkdayjobs.com": cfg.get("workday_seconds_between_requests", 1.5)})
+                                  host_intervals={"myworkdayjobs.com": cfg.get("workday_seconds_between_requests", 1.5),
+                                                  "himalayas.app": cfg.get("himalayas_seconds_between_requests", 3)})
 
     def keep(title, location):
         return scoring.title_ok(title, cfg) and (location is None or scoring.location_ok(location, cfg))

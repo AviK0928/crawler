@@ -17,6 +17,8 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
       - run: python -m jobcrawler crawl | tee -a "$GITHUB_STEP_SUMMARY"
+        env:   # optional: add in repo Settings > Secrets and variables > Actions
+          HIMALAYAS_API_KEY: ${{ secrets.HIMALAYAS_API_KEY }}
       - uses: actions/upload-artifact@v4
         with:
           name: java-sde-jobs

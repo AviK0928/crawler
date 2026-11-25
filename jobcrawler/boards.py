@@ -10,11 +10,13 @@ himalayas   Himalayas' free public remote-jobs API, searched for jobs open to In
 hn_hiring   The monthly Hacker News "Ask HN: Who is hiring?" thread, read through HN's official
             search API (hn.algolia.com). Posts are free text, so title/location are best guesses.
 """
+import os
 import re
+import threading
 from datetime import datetime, timezone
 from urllib.parse import quote, urlencode, urlparse
 
-from .http import NotFound
+from .http import NotFound, RateLimited
 from .models import Found, Job, html_to_text
 
 AGGREGATORS = {"himalayas", "hn_hiring"}
@@ -104,24 +106,43 @@ def parse_himalayas(items):
     return out
 
 
-def himalayas(client, ident, keep, max_pages=5):
+# Without a key, every caller on the internet shares one small Himalayas allowance, so searches run
+# one at a time. A free key (HIMALAYAS_API_KEY) gets its own 60 requests/minute.
+HIMALAYAS_LOCK = threading.Lock()
+
+
+def himalayas(client, ident, keep, max_pages=3):
     """ident = {"query": "java", "country": "IN"} -> remote jobs open to India, newest first."""
     q, country = ident.get("query", "software engineer"), ident.get("country", "IN")
+    key = os.environ.get("HIMALAYAS_API_KEY", "").strip()
+    headers = {"Authorization": f"Bearer {key}"} if key else None
     out, seen = Found(), set()
-    for page in range(1, max_pages + 1):
-        params = {"q": q, "country": country, "sort": "recent", "page": page}
-        data = client.get_json("https://himalayas.app/jobs/api/search?" + urlencode(params), retries=2)
-        items = data.get("jobs") or []
-        for j in parse_himalayas(items):
-            if j.job_id in seen:
-                continue
-            seen.add(j.job_id)
-            out.scanned += 1
-            if keep(j.title, j.location):
-                out.append(j)
-        if not items or out.scanned >= (data.get("totalCount") or 0):
-            break
+    with HIMALAYAS_LOCK:
+        for page in range(1, max_pages + 1):
+            params = {"q": q, "country": country, "sort": "recent", "page": page}
+            try:
+                data = client.get_json("https://himalayas.app/jobs/api/search?" + urlencode(params),
+                                       headers=headers, retries=2)
+            except RateLimited:
+                if out.scanned:
+                    return out        # keep the pages we already have
+                raise
+            if not _himalayas_page(data, out, seen, keep):
+                break
     return out
+
+
+def _himalayas_page(data, out, seen, keep):
+    """Adds one page of results; returns False when there are no more pages."""
+    items = data.get("jobs") or []
+    for j in parse_himalayas(items):
+        if j.job_id in seen:
+            continue
+        seen.add(j.job_id)
+        out.scanned += 1
+        if keep(j.title, j.location):
+            out.append(j)
+    return bool(items) and out.scanned < (data.get("totalCount") or 0)
 
 
 # ---------------------------------------------------------------- Hacker News "Who is hiring?"

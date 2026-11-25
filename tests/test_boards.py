@@ -122,6 +122,42 @@ class Himalayas(unittest.TestCase):
         self.assertEqual(jobs[0].posted, "2026-11-09")
 
 
+class HimalayasKeyAndLimits(unittest.TestCase):
+    def test_sends_key_when_set(self):
+        from unittest import mock
+        seen = []
+        class K(C):
+            def get_json(self, url, headers=None, **kw):
+                seen.append(headers)
+                return super().get_json(url, **kw)
+        with mock.patch.dict("os.environ", {"HIMALAYAS_API_KEY": "abc"}):
+            boards.himalayas(K(), {"query": "java"}, KEEP)
+        self.assertEqual(seen[0], {"Authorization": "Bearer abc"})
+        seen.clear()
+        with mock.patch.dict("os.environ", {"HIMALAYAS_API_KEY": ""}):
+            boards.himalayas(K(), {"query": "java"}, KEEP)
+        self.assertIsNone(seen[0])
+
+    def test_keeps_first_page_when_rate_limited_later(self):
+        from jobcrawler.http import RateLimited
+        class L(C):
+            def get_json(self, url, **kw):
+                if "page=2" in url:
+                    raise RateLimited("429")
+                data = dict(HIMALAYAS, totalCount=99)
+                return data
+        jobs = boards.himalayas(L(), {"query": "java"}, KEEP)
+        self.assertEqual(jobs.scanned, 3)
+
+    def test_rate_limited_first_page_raises(self):
+        from jobcrawler.http import RateLimited
+        class R(C):
+            def get_json(self, url, **kw):
+                raise RateLimited("429")
+        with self.assertRaises(RateLimited):
+            boards.himalayas(R(), {"query": "java"}, KEEP)
+
+
 class HNHiring(unittest.TestCase):
     def test_parse(self):
         company, titles, first, _ = boards.parse_hn_post(HN_ITEM["children"][0])
